@@ -22,6 +22,7 @@ export const PAGE_TITLES: Record<string, string> = {
   theming: "Theming",
   fonts: "Fonts",
   "building-components": "Building Components",
+  "ui-library-parity": "GPUI UI Library Parity",
   runtime: "App & Runtime",
   frontend: "Frontend Projects",
   "native-surfaces": "Native Surfaces",

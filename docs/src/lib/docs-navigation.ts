@@ -36,6 +36,7 @@ const unprefixedNavSections: NavSection[] = [
       { name: "Theming", href: "/theming" },
       { name: "Fonts", href: "/fonts" },
       { name: "Building Components", href: "/building-components" },
+      { name: "GPUI UI Library Parity", href: "/ui-library-parity" },
     ],
   },
   {

@@ -1674,6 +1674,98 @@ pub fn Ui(comptime Msg: type) type {
             return self.el(.list, options, children);
         }
 
+        pub fn grid(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.grid, options, children);
+        }
+
+        pub fn dataGrid(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.data_grid, options, children);
+        }
+
+        pub fn table(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.table, options, children);
+        }
+
+        pub fn dataRow(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.data_row, options, children);
+        }
+
+        pub fn dataCell(self: *Self, options: ElementOptions, label_text: []const u8) Node {
+            var node = self.el(.data_cell, options, .{});
+            node.widget.text = label_text;
+            return node;
+        }
+
+        pub fn breadcrumb(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.breadcrumb, options, children);
+        }
+
+        pub fn buttonGroup(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.button_group, options, children);
+        }
+
+        pub fn pagination(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.pagination, options, children);
+        }
+
+        pub fn radioGroup(self: *Self, options: ElementOptions, children: anytype) Node {
+            var resolved = options;
+            if (resolved.semantics.role == .none) resolved.semantics.role = .radiogroup;
+            return self.el(.radio_group, resolved, children);
+        }
+
+        pub fn tabs(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.tabs, options, children);
+        }
+
+        pub fn toggleGroup(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.toggle_group, options, children);
+        }
+
+        pub fn accordion(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.accordion, options, children);
+        }
+
+        pub fn alert(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.alert, options, children);
+        }
+
+        pub fn bubble(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.bubble, options, children);
+        }
+
+        pub fn card(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.card, options, children);
+        }
+
+        pub fn dialog(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.dialog, options, children);
+        }
+
+        pub fn drawer(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.drawer, options, children);
+        }
+
+        pub fn sheet(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.sheet, options, children);
+        }
+
+        pub fn resizable(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.resizable, options, children);
+        }
+
+        pub fn popover(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.popover, options, children);
+        }
+
+        pub fn menuSurface(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.menu_surface, options, children);
+        }
+
+        pub fn dropdownMenu(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.dropdown_menu, options, children);
+        }
+
         /// Options shared by `virtualWindow` and `virtualList` — declare
         /// them once, pass the same value to both calls.
         pub const VirtualListOptions = struct {
@@ -1824,7 +1916,7 @@ pub fn Ui(comptime Msg: type) type {
             const state: VirtualWindowState = resolved orelse .{ .offset = 0, .viewport_extent = options.viewport_fallback, .mounted = false };
             const viewport = state.viewport_extent;
             var offset: f32 = state.offset;
-            const table: ?*canvas.VirtualExtentTable = blk: {
+            const extent_table: ?*canvas.VirtualExtentTable = blk: {
                 if (self.virtual_extent_source) |source| break :blk source(self.virtual_extent_context, id);
                 break :blk null;
             };
@@ -1839,7 +1931,7 @@ pub fn Ui(comptime Msg: type) type {
                 .estimate_fn = options.extent_estimate,
                 .uniform_estimate = options.item_extent,
             };
-            if (table) |retained| {
+            if (extent_table) |retained| {
                 _ = retained.sync(.{
                     .id = id,
                     .item_count = options.item_count,
@@ -1877,7 +1969,7 @@ pub fn Ui(comptime Msg: type) type {
                 offset = @max(0, probe.content_extent - viewport);
             }
             range_options.scroll_offset = offset;
-            const variable = canvas.virtualVariableListRange(range_options, table);
+            const variable = canvas.virtualVariableListRange(range_options, extent_table);
             return .{
                 .start_index = variable.start_index,
                 .end_index = variable.end_index,
@@ -2084,14 +2176,98 @@ pub fn Ui(comptime Msg: type) type {
             return node;
         }
 
+        pub fn badge(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.badge, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
+        pub fn toggleButton(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.toggle_button, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
+        pub fn iconButton(self: *Self, options: ElementOptions) Node {
+            return self.el(.icon_button, options, .{});
+        }
+
         pub fn listItem(self: *Self, options: ElementOptions, label: []const u8) Node {
             var node = self.el(.list_item, options, .{});
             node.widget.text = label;
             return node;
         }
 
+        pub fn menuItem(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.menu_item, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
         pub fn checkbox(self: *Self, options: ElementOptions) Node {
             return self.el(.checkbox, options, .{});
+        }
+
+        pub fn radio(self: *Self, options: ElementOptions) Node {
+            return self.el(.radio, options, .{});
+        }
+
+        pub fn switchControl(self: *Self, options: ElementOptions) Node {
+            return self.el(.switch_control, options, .{});
+        }
+
+        pub fn toggle(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.toggle, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
+        pub fn slider(self: *Self, options: ElementOptions) Node {
+            return self.el(.slider, options, .{});
+        }
+
+        pub fn progress(self: *Self, options: ElementOptions) Node {
+            return self.el(.progress, options, .{});
+        }
+
+        pub fn segmentedControl(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.el(.segmented_control, options, children);
+        }
+
+        pub fn select(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.select, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
+        pub fn input(self: *Self, options: ElementOptions) Node {
+            return self.el(.input, options, .{});
+        }
+
+        pub fn searchField(self: *Self, options: ElementOptions) Node {
+            return self.el(.search_field, options, .{});
+        }
+
+        pub fn combobox(self: *Self, options: ElementOptions) Node {
+            return self.el(.combobox, options, .{});
+        }
+
+        pub fn textarea(self: *Self, options: ElementOptions) Node {
+            return self.el(.textarea, options, .{});
+        }
+
+        pub fn tooltip(self: *Self, options: ElementOptions, label: []const u8) Node {
+            var node = self.el(.tooltip, options, .{});
+            node.widget.text = label;
+            return node;
+        }
+
+        pub fn skeleton(self: *Self, options: ElementOptions) Node {
+            return self.el(.skeleton, options, .{});
+        }
+
+        pub fn spinner(self: *Self, options: ElementOptions) Node {
+            return self.el(.spinner, options, .{});
         }
 
         /// house-style avatar: a pill-clipped image with an initials
@@ -2428,6 +2604,259 @@ pub fn Ui(comptime Msg: type) type {
         /// Flexible empty space between siblings.
         pub fn spacer(self: *Self, grow: f32) Node {
             return self.el(.stack, .{ .grow = grow }, .{});
+        }
+
+        // Reference-library names below are stateless vocabulary, not a
+        // second component engine. Each helper lowers immediately to the
+        // retained widgets above; open/selected/query/layout values stay in
+        // the caller's model and arrive through ElementOptions or children.
+
+        fn withDefaultRole(options: ElementOptions, role: canvas.WidgetRole) ElementOptions {
+            var resolved = options;
+            if (resolved.semantics.role == .none) resolved.semantics.role = role;
+            return resolved;
+        }
+
+        fn withDefaultVariant(options: ElementOptions, variant: canvas.WidgetVariant) ElementOptions {
+            var resolved = options;
+            if (resolved.variant == .default) resolved.variant = variant;
+            return resolved;
+        }
+
+        pub fn textLabel(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.text(withDefaultRole(options, .text), content);
+        }
+
+        pub fn linkButton(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.button(withDefaultRole(withDefaultVariant(options, .ghost), .link), content);
+        }
+
+        pub fn banner(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.callout(options, children);
+        }
+
+        pub fn callout(self: *Self, options: ElementOptions, children: anytype) Node {
+            const content = self.column(.{ .gap = 6 }, children);
+            return self.alert(options, .{content});
+        }
+
+        pub fn notification(self: *Self, options: ElementOptions, children: anytype) Node {
+            const content = self.column(.{ .gap = 6 }, children);
+            return self.alert(options, .{content});
+        }
+
+        pub fn chip(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.badge(options, content);
+        }
+
+        pub fn tagBadge(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.badge(options, content);
+        }
+
+        pub fn countBadge(self: *Self, options: ElementOptions, count: usize) Node {
+            return self.badge(options, self.fmt("{d}", .{count}));
+        }
+
+        pub fn statusIndicator(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.badge(options, content);
+        }
+
+        pub fn kbd(self: *Self, options: ElementOptions, keys: []const u8) Node {
+            var resolved = withDefaultVariant(options, .outline);
+            if (resolved.size == .default) resolved.size = .sm;
+            return self.badge(resolved, keys);
+        }
+
+        pub fn keybinding(self: *Self, options: ElementOptions, keys: []const u8) Node {
+            return self.kbd(options, keys);
+        }
+
+        pub fn keybindingHint(self: *Self, options: ElementOptions, keys: []const u8) Node {
+            return self.kbd(options, keys);
+        }
+
+        pub fn divider(self: *Self, options: ElementOptions) Node {
+            return self.separator(options);
+        }
+
+        pub fn facepile(self: *Self, options: ElementOptions, avatars: anytype) Node {
+            var resolved = options;
+            if (resolved.gap == 0) resolved.gap = 4;
+            return self.row(resolved, avatars);
+        }
+
+        pub fn group(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.column(withDefaultRole(options, .group), children);
+        }
+
+        pub fn modal(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.dialog(options, children);
+        }
+
+        pub fn popoverMenu(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.dropdownMenu(options, children);
+        }
+
+        pub fn menu(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.dropdownMenu(options, children);
+        }
+
+        pub fn tab(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.button(withDefaultRole(withDefaultVariant(options, .ghost), .tab), content);
+        }
+
+        pub fn tabBar(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.tabs(options, children);
+        }
+
+        pub fn treeViewItem(self: *Self, options: ElementOptions, content: []const u8) Node {
+            return self.listItem(withDefaultRole(options, .treeitem), content);
+        }
+
+        pub fn dataTable(self: *Self, options: ElementOptions, rows: anytype) Node {
+            return self.table(options, rows);
+        }
+
+        pub fn diffStat(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.row(withDefaultRole(options, .group), children);
+        }
+
+        pub fn disclosure(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.accordion(options, children);
+        }
+
+        pub fn redistributableColumns(self: *Self, options: ElementOptions, columns: anytype) Node {
+            return self.split(options, columns);
+        }
+
+        pub fn withContextMenu(self: *Self, node: Node, items: []const ContextMenuItem) Node {
+            var resolved = node;
+            resolved.context_menu = self.dupeContextMenuItems(items);
+            return resolved;
+        }
+
+        pub fn rightClickMenu(self: *Self, node: Node, items: []const ContextMenuItem) Node {
+            return self.withContextMenu(node, items);
+        }
+
+        pub fn nativeMenu(self: *Self, node: Node, items: []const ContextMenuItem) Node {
+            return self.withContextMenu(node, items);
+        }
+
+        /// Keep a caller-built header outside a caller-built scrolling body.
+        /// This is the stateless sticky-section composition: the body owns
+        /// its scroll behavior, while the header remains a normal sibling.
+        pub fn stickyItems(self: *Self, options: ElementOptions, header: Node, body: Node) Node {
+            return self.column(options, .{ header, body });
+        }
+
+        pub fn emptyState(self: *Self, options: ElementOptions, children: anytype) Node {
+            var resolved = withDefaultRole(options, .group);
+            if (resolved.main == .start) resolved.main = .center;
+            if (resolved.cross == .stretch) resolved.cross = .center;
+            return self.column(resolved, children);
+        }
+
+        pub fn groupBox(self: *Self, options: ElementOptions, children: anytype) Node {
+            const content = self.column(.{ .gap = 8 }, children);
+            return self.card(options, .{content});
+        }
+
+        pub fn collapsible(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.accordion(options, children);
+        }
+
+        pub fn sidebar(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.column(withDefaultRole(options, .group), children);
+        }
+
+        /// Rating is the single-choice semantic shell. The caller supplies
+        /// star/icon/radio children and owns the selected value.
+        pub fn rating(self: *Self, options: ElementOptions, items: anytype) Node {
+            return self.radioGroup(options, items);
+        }
+
+        /// Color picker is a swatch grid shell. Swatches are ordinary
+        /// caller-owned buttons/toggles carrying color tokens and messages.
+        pub fn colorPicker(self: *Self, options: ElementOptions, swatches: anytype) Node {
+            return self.grid(withDefaultRole(options, .group), swatches);
+        }
+
+        pub fn form(self: *Self, options: ElementOptions, fields: anytype) Node {
+            return self.column(withDefaultRole(options, .group), fields);
+        }
+
+        pub fn setting(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.row(withDefaultRole(options, .group), children);
+        }
+
+        pub fn commandPalette(self: *Self, options: ElementOptions, search: Node, results: Node) Node {
+            const content = self.column(.{ .gap = 8, .grow = 1 }, .{ search, results });
+            return self.dialog(options, .{content});
+        }
+
+        pub fn history(self: *Self, options: ElementOptions, entries: anytype) Node {
+            return self.list(options, entries);
+        }
+
+        pub fn searchableList(self: *Self, options: ElementOptions, search: Node, results: Node) Node {
+            return self.column(options, .{ search, results });
+        }
+
+        pub const HoverCardOptions = struct {
+            /// Caller-owned visibility. Hover messages below are immediate
+            /// intents; the caller decides whether to apply open/close delays
+            /// before rebuilding with this flag changed.
+            open: bool = false,
+            on_hover_enter: ?Msg = null,
+            on_hover_leave: ?Msg = null,
+            container: ElementOptions = .{},
+            card: ElementOptions = .{},
+            placement: canvas.WidgetAnchorPlacement = .below,
+            alignment: canvas.WidgetAnchorAlignment = .start,
+            offset: f32 = 4,
+        };
+
+        /// Hover-card composition with no retained product state. The runtime
+        /// reports pointer containment for both trigger and open card; the
+        /// caller owns hover intent, delay timers, and the resulting `open`
+        /// state in its ordinary Model/Msg/update loop.
+        pub fn hoverCard(self: *Self, options: HoverCardOptions, trigger: Node, content: anytype) Node {
+            var resolved_trigger = trigger;
+            if (options.on_hover_enter) |msg| resolved_trigger.on_hover_enter = msg;
+            if (options.on_hover_leave) |msg| resolved_trigger.on_hover_leave = msg;
+
+            if (!options.open) return self.stack(options.container, .{resolved_trigger});
+
+            var card_options = options.card;
+            card_options.anchor = options.placement;
+            card_options.anchor_alignment = options.alignment;
+            card_options.anchor_offset = options.offset;
+            if (options.on_hover_enter) |msg| card_options.on_hover_enter = msg;
+            if (options.on_hover_leave) |msg| card_options.on_hover_leave = msg;
+
+            return self.stack(options.container, .{
+                resolved_trigger,
+                self.popover(card_options, content),
+            });
+        }
+
+        pub fn descriptionList(self: *Self, options: ElementOptions, rows: anytype) Node {
+            return self.dataGrid(withDefaultRole(options, .grid), rows);
+        }
+
+        pub fn highlighter(self: *Self, options: CodeOptions, source: []const u8) Node {
+            return self.code(options, source);
+        }
+
+        pub fn plot(self: *Self, options: ChartOptions, series: []const canvas.ChartSeries) Node {
+            return self.chart(options, series);
+        }
+
+        /// Dock layout is a model-owned split tree. Nest `dock` calls for
+        /// more panes; persistence and tab selection remain caller state.
+        pub fn dock(self: *Self, options: ElementOptions, panes: anytype) Node {
+            return self.split(options, panes);
         }
 
         pub const CodeOptions = struct {
@@ -3555,8 +3984,8 @@ pub fn Ui(comptime Msg: type) type {
                 // frame and strand keyboard navigation. With no author
                 // label, `semanticLabel` falls back to this text, so an
                 // unnamed terminal still reads its screen.
-                if (widget.terminal.grid) |grid| {
-                    if (grid.screen_text.len > 0) widget.text = grid.screen_text;
+                if (widget.terminal.grid) |terminal_grid| {
+                    if (terminal_grid.screen_text.len > 0) widget.text = terminal_grid.screen_text;
                 }
             }
             if (node.context_menu.len > 0) {
