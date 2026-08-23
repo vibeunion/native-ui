@@ -549,7 +549,11 @@ export type CmdData =
   | { readonly op: "pty_write"; readonly key: string; readonly bytes: Uint8Array }
   | { readonly op: "pty_resize"; readonly key: string; readonly cols: number; readonly rows: number }
   | { readonly op: "pty_kill"; readonly key: string }
+  | { readonly op: "platform_feature"; readonly feature: PlatformFeature; readonly verb: PlatformFeatureVerb }
   | { readonly op: "batch"; readonly cmds: readonly CmdData[] };
+
+export type PlatformFeature = "shortcut_capture";
+export type PlatformFeatureVerb = "start" | "stop";
 
 export type Cmd<M extends Msgish> = CmdData;
 
@@ -1067,6 +1071,10 @@ export const Cmd = {
 
   ptyKill(key: string): CmdData {
     return { op: "pty_kill", key };
+  },
+
+  platformFeature(feature: PlatformFeature, verb: PlatformFeatureVerb): CmdData {
+    return { op: "platform_feature", feature, verb };
   },
 
   batch(cmds: readonly CmdData[]): CmdData {

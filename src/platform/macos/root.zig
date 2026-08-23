@@ -187,6 +187,8 @@ extern fn native_sdk_appkit_emit_window_event(host: *AppKitHost, window_id: u64,
 extern fn native_sdk_appkit_set_security_policy(host: *AppKitHost, allowed_origins: [*]const u8, allowed_origins_len: usize, external_urls: [*]const u8, external_urls_len: usize, external_action: c_int) void;
 extern fn native_sdk_appkit_set_menus(host: *AppKitHost, menu_titles: [*]const [*]const u8, menu_title_lens: [*]const usize, menu_count: usize, item_menu_indices: [*]const u32, item_labels: [*]const [*]const u8, item_label_lens: [*]const usize, item_commands: [*]const [*]const u8, item_command_lens: [*]const usize, item_keys: [*]const [*]const u8, item_key_lens: [*]const usize, item_modifiers: [*]const u32, item_separators: [*]const c_int, item_enabled: [*]const c_int, item_checked: [*]const c_int, item_count: usize) void;
 extern fn native_sdk_appkit_set_shortcuts(host: *AppKitHost, ids: [*]const [*]const u8, id_lens: [*]const usize, keys: [*]const [*]const u8, key_lens: [*]const usize, modifiers: [*]const u32, count: usize) void;
+extern fn native_sdk_appkit_start_shortcut_capture(host: *AppKitHost) void;
+extern fn native_sdk_appkit_stop_shortcut_capture(host: *AppKitHost) void;
 extern fn native_sdk_appkit_request_frame(host: *AppKitHost) void;
 extern fn native_sdk_appkit_create_window(host: *AppKitHost, window_id: u64, window_title: [*]const u8, window_title_len: usize, window_label: [*]const u8, window_label_len: usize, x: f64, y: f64, width: f64, height: f64, restore_frame: c_int, initial_placement: c_int, restore_policy: c_int, resizable: c_int, titlebar_style: c_int, show_policy: c_int, window_flags: u32) c_int;
 extern fn native_sdk_appkit_set_window_content_min_size(host: *AppKitHost, window_id: u64, min_width: f64, min_height: f64) c_int;
@@ -809,6 +811,8 @@ pub const MacPlatform = struct {
                 .configure_security_policy_fn = configureSecurityPolicy,
                 .configure_menus_fn = configureMenus,
                 .configure_shortcuts_fn = configureShortcuts,
+                .start_shortcut_capture_fn = if (self.web_engine == .system) startShortcutCapture else null,
+                .stop_shortcut_capture_fn = if (self.web_engine == .system) stopShortcutCapture else null,
                 .emit_window_event_fn = emitWindowEvent,
                 .start_timer_fn = startTimer,
                 .cancel_timer_fn = cancelTimer,
@@ -875,6 +879,7 @@ pub const MacPlatform = struct {
             .window_hide_on_close,
             => true,
             .context_menus => true,
+            .shortcut_capture => self.web_engine == .system,
             .native_views,
             .native_control_commands,
             .menus,
@@ -2442,6 +2447,16 @@ fn configureShortcuts(context: ?*anyopaque, shortcuts: []const platform_mod.Shor
     native_sdk_appkit_set_shortcuts(self.host, ids[0..shortcuts.len].ptr, id_lens[0..shortcuts.len].ptr, keys[0..shortcuts.len].ptr, key_lens[0..shortcuts.len].ptr, modifiers[0..shortcuts.len].ptr, shortcuts.len);
 }
 
+fn startShortcutCapture(context: ?*anyopaque) anyerror!void {
+    const self: *MacPlatform = @ptrCast(@alignCast(context.?));
+    native_sdk_appkit_start_shortcut_capture(self.host);
+}
+
+fn stopShortcutCapture(context: ?*anyopaque) anyerror!void {
+    const self: *MacPlatform = @ptrCast(@alignCast(context.?));
+    native_sdk_appkit_stop_shortcut_capture(self.host);
+}
+
 fn shortcutModifierFlags(modifiers: platform_mod.ShortcutModifiers) u32 {
     var flags: u32 = 0;
     if (modifiers.primary) flags |= shortcut_modifier_primary;
@@ -2579,6 +2594,7 @@ test "macos chromium reports unsupported native surfaces" {
     try std.testing.expect(MacPlatform.supportsFeature(&system, .menus));
     try std.testing.expect(MacPlatform.supportsFeature(&system, .gpu_surfaces));
     try std.testing.expect(MacPlatform.supportsFeature(&system, .view_surface_adoption));
+    try std.testing.expect(MacPlatform.supportsFeature(&system, .shortcut_capture));
 
     var chromium = testPlatformWithEngine(.chromium);
     try std.testing.expect(MacPlatform.supportsFeature(&chromium, .main_webview));
@@ -2591,6 +2607,7 @@ test "macos chromium reports unsupported native surfaces" {
     try std.testing.expect(!MacPlatform.supportsFeature(&chromium, .file_drops));
     try std.testing.expect(!MacPlatform.supportsFeature(&chromium, .gpu_surfaces));
     try std.testing.expect(!MacPlatform.supportsFeature(&chromium, .view_surface_adoption));
+    try std.testing.expect(!MacPlatform.supportsFeature(&chromium, .shortcut_capture));
 }
 
 test "macos chromium refuses transparent windows" {
@@ -2607,6 +2624,19 @@ test "macos chromium refuses transparent windows" {
         host_source,
         "if ((window_flags & (1u << 0)) != 0) return",
     ) >= 2);
+}
+
+test "macos shortcut capture is one-shot and cancels on lifecycle edges" {
+    const host_source = @embedFile("appkit_host.m");
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if (event.type == NSEventTypeFlagsChanged) {\n        return YES;\n    }") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if (event.isARepeat) return YES;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if ([key isEqualToString:@\"escape\"]) {\n        [self cancelShortcutCapture];") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "[key lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > NativeSdkMaxShortcutKeyBytes") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "[self stopShortcutCapture];\n    [self emitShortcutCaptureKey:key modifiers:modifiers windowId:windowId];") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "[self emitShortcutCaptureKey:@\"\" modifiers:0 windowId:windowId];") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "windowDidResignKey:(NSNotification *)notification") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "windowWillClose:(NSNotification *)notification") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "applicationDidResignActive:(NSNotification *)notification") != null);
 }
 
 fn testPlatformWithEngine(web_engine: platform_mod.WebEngine) MacPlatform {

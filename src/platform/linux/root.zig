@@ -483,7 +483,7 @@ pub const LinuxPlatform = struct {
             // The load verbs teach and refuse (see `videoLoad`), so an
             // app that skips the capability check still learns exactly
             // what is missing.
-            .video_playback => false,
+            .shortcut_capture, .video_playback => false,
         };
     }
 
@@ -1776,11 +1776,13 @@ test "linux chromium reports unsupported desktop features" {
     try std.testing.expect(LinuxPlatform.supportsFeature(&system, .native_control_commands));
     try std.testing.expect(LinuxPlatform.supportsFeature(&system, .menus));
     try std.testing.expect(LinuxPlatform.supportsFeature(&system, .gpu_surfaces));
+    try std.testing.expect(!LinuxPlatform.supportsFeature(&system, .shortcut_capture));
 
     var chromium = testPlatformWithEngine(.chromium);
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .gpu_surfaces));
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .main_webview));
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .shortcuts));
+    try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .shortcut_capture));
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .child_webviews));
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .native_views));
     try std.testing.expect(!LinuxPlatform.supportsFeature(&chromium, .native_control_commands));

@@ -1,6 +1,6 @@
 //! The native host consumer for compiled TypeScript app cores: bridges
 //! the versioned command/subscription wire format a compiled core
-//! emits (`cmd_format_version` 7) onto the real effect engine
+//! emits (`cmd_format_version` 8) onto the real effect engine
 //! (`effects.zig`). The TypeScript tier's core module is a pure
 //! Model/Msg/update core whose effects are INERT BYTES — this module is
 //! the one place those bytes become engine calls, so the entire
@@ -1665,6 +1665,15 @@ pub fn TsCoreHost(comptime core: type) type {
                             .statements = if (valid and count == statement_kept) statements[0..statement_kept] else &.{},
                             .on_result = dbResultMsg,
                         });
+                    },
+                    0x33 => {
+                        const feature_byte = takeByte(cmd, &at);
+                        const verb_byte = takeByte(cmd, &at);
+                        const feature = std.enums.fromInt(runtime_effects.PlatformFeatureId, feature_byte) orelse
+                            @panic("ts core host: unknown platform_feature feature wire value - the core and this runtime disagree on cmd_format_version");
+                        const verb = std.enums.fromInt(runtime_effects.PlatformFeatureVerb, verb_byte) orelse
+                            @panic("ts core host: unknown platform_feature verb wire value - the core and this runtime disagree on cmd_format_version");
+                        fx.platformFeature(feature, verb);
                     },
                     else => @panic("ts core host: unknown command wire record - the core and this runtime disagree on cmd_format_version"),
                 }

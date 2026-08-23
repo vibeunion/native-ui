@@ -37,6 +37,9 @@ pub const max_shortcut_id_bytes: usize = 64;
 /// cross-platform ABI is bounded to this size.
 pub const max_app_id_bytes: usize = 128;
 pub const max_shortcut_key_bytes: usize = 32;
+/// Reserved runtime command channel used for one-shot shortcut capture.
+/// App manifests cannot bind it as an ordinary shortcut id.
+pub const shortcut_capture_command_id = "__capture__";
 pub const max_shell_windows: usize = 16;
 pub const max_shell_views_per_window: usize = 128;
 pub const max_view_label_bytes: usize = 64;

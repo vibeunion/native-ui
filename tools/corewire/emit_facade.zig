@@ -2676,7 +2676,7 @@ const FacadeEmitter = struct {
         }
     }
 
-    /// The v3 command wire encoder — byte-for-byte the layouts the
+    /// The v8 command wire encoder — byte-for-byte the layouts the
     /// host's rt builds (wire.ts's encodeCmd, per-module).
     fn cmdEncoder(self: *FacadeEmitter) Error!void {
         const msg = self.sidecar.msg.name;
@@ -2685,13 +2685,15 @@ const FacadeEmitter = struct {
             \\// ---------------------------------------------------- the cmd wire
             \\// Encoder for the inert Cmd data the author's update returns —
             \\// byte-for-byte the layouts the host's command decoder expects
-            \\// (cmd_format_version 7). nscfTagOf maps a Msg arm name onto its
+            \\// (cmd_format_version 8). nscfTagOf maps a Msg arm name onto its
             \\// declaration-order wire tag.
             \\
             \\const nscfFetchMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"];
             \\const nscfAudioVerbs = ["pause", "resume", "stop", "seek", "volume"];
             \\const nscfAudioCaptureSources = ["microphone", "system"];
             \\const nscfVideoVerbs = ["play", "pause", "stop", "seek", "volume", "muted", "loop"];
+            \\const nscfPlatformFeatures = ["shortcut_capture"];
+            \\const nscfPlatformFeatureVerbs = ["start", "stop"];
             \\
             \\// Preserve the store err route for dynamic invalid limits. Writing a
             \\// fractional or out-of-u32 number directly into the byte sink would
@@ -3069,6 +3071,11 @@ const FacadeEmitter = struct {
             \\    case "pty_kill":
             \\      nscfWU8(sink, 0x1c);
             \\      nscfWShortText(sink, cmd.key);
+            \\      return;
+            \\    case "platform_feature":
+            \\      nscfWU8(sink, 0x33);
+            \\      nscfWU8(sink, nscfMemberIndex(nscfPlatformFeatures, cmd.feature, "platform feature") + 1);
+            \\      nscfWU8(sink, nscfMemberIndex(nscfPlatformFeatureVerbs, cmd.verb, "platform feature verb") + 1);
             \\      return;
             \\    case "show_notification":
             \\      if (cmd.id.length === 0 && cmd.actionLabel.length === 0 && cmd.actionCommand.length === 0) {
@@ -3855,6 +3862,10 @@ test "facade emission is deterministic and carries the adapter surface" {
     try testing.expect(std.mem.indexOf(u8, first, "nscfWU32(sink, 2);") != null);
     try testing.expect(std.mem.indexOf(u8, first, "nscfWBytes(sink, nscfFinish(nscfFieldSink0));") != null);
     try testing.expect(std.mem.indexOf(u8, first, "export function abi_subscriptions(): Uint8Array {") != null);
+    try testing.expect(std.mem.indexOf(u8, first, "const nscfPlatformFeatures = [\"shortcut_capture\"];") != null);
+    try testing.expect(std.mem.indexOf(u8, first, "const nscfPlatformFeatureVerbs = [\"start\", \"stop\"];") != null);
+    try testing.expect(std.mem.indexOf(u8, first, "case \"platform_feature\":") != null);
+    try testing.expect(std.mem.indexOf(u8, first, "nscfWU8(sink, 0x33);") != null);
     try testing.expect(std.mem.indexOf(u8, first, "export function subscriptions(): Uint8Array {") == null);
     try testing.expect(std.mem.indexOf(u8, first, "export function model_snapshot(): Uint8Array {") != null);
     try testing.expect(std.mem.indexOf(u8, first, "export function persist_snapshot(): Uint8Array {") != null);

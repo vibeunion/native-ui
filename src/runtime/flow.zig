@@ -372,8 +372,9 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
                     });
                 },
                 .shortcut => |shortcut| {
+                    var capture_command_buffer: [validation.max_command_id_bytes]u8 = undefined;
                     try dispatchCommand(self, app, .{
-                        .name = shortcut.id,
+                        .name = try shortcutCommandName(shortcut, &capture_command_buffer),
                         .source = .shortcut,
                         .window_id = shortcut.window_id,
                     });
@@ -1312,6 +1313,27 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
             return trace.Timestamp.fromNanoseconds(self.timestamp_ns);
         }
     };
+}
+
+fn shortcutCommandName(shortcut: platform.ShortcutEvent, buffer: []u8) ![]const u8 {
+    if (!std.mem.eql(u8, shortcut.id, "__capture__")) return shortcut.id;
+    if (shortcut.key.len > platform.max_shortcut_key_bytes) return error.InvalidShortcut;
+
+    var modifiers: u32 = 0;
+    if (shortcut.modifiers.primary) modifiers |= 1 << 0;
+    if (shortcut.modifiers.command) modifiers |= 1 << 1;
+    if (shortcut.modifiers.control) modifiers |= 1 << 2;
+    if (shortcut.modifiers.option) modifiers |= 1 << 3;
+    if (shortcut.modifiers.shift) modifiers |= 1 << 4;
+
+    var writer = std.Io.Writer.fixed(buffer);
+    try writer.print("__capture__:{d}:", .{modifiers});
+    const digits = "0123456789abcdef";
+    for (shortcut.key) |byte| {
+        try writer.writeByte(digits[byte >> 4]);
+        try writer.writeByte(digits[byte & 0x0f]);
+    }
+    return writer.buffered();
 }
 
 fn copyInto(buffer: []u8, value: []const u8) ![]const u8 {

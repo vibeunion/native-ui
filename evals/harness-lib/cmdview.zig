@@ -1,5 +1,5 @@
 //! Decoder over the app-core Cmd/Sub wire format (rt.zig, cmd_format_version
-//! 7), shared by the ts-track behavioral harnesses. The graders copy this
+//! 8), shared by the ts-track behavioral harnesses. The graders copy this
 //! file next to each case's harness so assertions read decoded ops — "a
 //! fetch with key `feed` targeting this URL", "the delay re-armed" — instead
 //! of hand-built byte strings, which keeps harnesses lenient about the parts
@@ -65,6 +65,7 @@ pub const Op = union(enum) {
     show_notification: struct { id: []const u8, title: []const u8, subtitle: []const u8, body: []const u8, action_label: []const u8, action_command: []const u8 },
     audio_capture_start: struct { key: f64, source: u8, sample_rate: u32, channels: u8, event_tag: u8 },
     audio_capture_stop: struct { key: f64 },
+    platform_feature: struct { feature: u8, verb: u8 },
 
     pub const Host = struct {
         name: []const u8,
@@ -603,6 +604,14 @@ pub const CmdIter = struct {
                 const head = routedHead(b, &off);
                 break :blk .{ .delete_file = .{ .key = head.key, .ok_tag = head.ok, .err_tag = head.err, .path = longBytes(b, &off) } };
             },
+            // platform_feature [op 0x33][feature u8][verb u8]. Version 8
+            // currently assigns shortcut_capture=1 and start/stop=1/2.
+            0x33 => blk: {
+                const feature = b[off];
+                const verb = b[off + 1];
+                off += 2;
+                break :blk .{ .platform_feature = .{ .feature = feature, .verb = verb } };
+            },
             else => std.debug.panic("cmdview: unknown op byte 0x{X:0>2} at offset {d}", .{ op, self.off }),
         };
         self.off = off;
@@ -741,6 +750,20 @@ test "window_hide and dock_presence decode, alone and inside a batch" {
     try std.testing.expectEqualStrings("hud", (iter.next() orelse return error.TestUnexpectedResult).window_hide.label);
     try std.testing.expect((iter.next() orelse return error.TestUnexpectedResult).dock_presence.visible);
     try std.testing.expectEqual(@as(u8, 9), (iter.next() orelse return error.TestUnexpectedResult).now.msg_tag);
+    try std.testing.expectEqual(@as(?Op, null), iter.next());
+}
+
+test "platform feature records decode and advance exactly" {
+    const started = findOp(&.{ 0x33, 0x01, 0x01 }, .platform_feature) orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(u8, 0x01), started.feature);
+    try std.testing.expectEqual(@as(u8, 0x01), started.verb);
+
+    const batch = [_]u8{ 0x33, 0x01, 0x02, 0x02, 7 };
+    var iter = CmdIter.init(&batch);
+    const stopped = (iter.next() orelse return error.TestUnexpectedResult).platform_feature;
+    try std.testing.expectEqual(@as(u8, 0x01), stopped.feature);
+    try std.testing.expectEqual(@as(u8, 0x02), stopped.verb);
+    try std.testing.expectEqual(@as(u8, 7), (iter.next() orelse return error.TestUnexpectedResult).now.msg_tag);
     try std.testing.expectEqual(@as(?Op, null), iter.next());
 }
 

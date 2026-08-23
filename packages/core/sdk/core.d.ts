@@ -540,9 +540,15 @@ export type Cmd<M extends Msgish> = {
     readonly op: "pty_kill";
     readonly key: string;
 } | {
+    readonly op: "platform_feature";
+    readonly feature: PlatformFeature;
+    readonly verb: PlatformFeatureVerb;
+} | {
     readonly op: "batch";
     readonly cmds: readonly Cmd<M>[];
 };
+export type PlatformFeature = "shortcut_capture";
+export type PlatformFeatureVerb = "start" | "stop";
 export declare function hostRecordBytes(payload: HostRecord): Uint8Array;
 export declare function serviceConcat(parts: readonly Uint8Array[]): Uint8Array;
 export declare function serviceBoolBytes(value: boolean): Uint8Array;
@@ -631,6 +637,7 @@ export declare const Cmd: {
     ptyWrite(key: string, bytes: Uint8Array): Cmd<never>;
     ptyResize(key: string, cols: number, rows: number): Cmd<never>;
     ptyKill(key: string): Cmd<never>;
+    platformFeature(feature: PlatformFeature, verb: PlatformFeatureVerb): Cmd<never>;
     batch<M extends Msgish>(cmds: readonly Cmd<M>[]): Cmd<M>;
 };
 export type Sub<M extends Msgish> = {

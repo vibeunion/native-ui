@@ -448,6 +448,51 @@ pub const max_window_action_label = 64;
 /// show/quit request made through the channel, recorded before the
 /// runtime call (and INSTEAD of it under the fake executor — hermetic
 /// tests pin the counts, live runs also perform the verb).
+pub const PlatformFeatureId = enum(u8) {
+    shortcut_capture = 0x01,
+};
+
+pub const PlatformFeatureVerb = enum(u8) {
+    start = 0x01,
+    stop = 0x02,
+};
+
+pub const PlatformFeatureOutcome = enum {
+    not_executed,
+    succeeded,
+    unsupported,
+    failed,
+};
+
+pub const PlatformFeatureState = struct {
+    shortcut_capture_start_count: u32 = 0,
+    shortcut_capture_stop_count: u32 = 0,
+    succeeded_count: u32 = 0,
+    unsupported_count: u32 = 0,
+    failed_count: u32 = 0,
+    last_outcome: PlatformFeatureOutcome = .not_executed,
+
+    pub fn record(self: *PlatformFeatureState, feature: PlatformFeatureId, verb: PlatformFeatureVerb) void {
+        self.last_outcome = .not_executed;
+        switch (feature) {
+            .shortcut_capture => switch (verb) {
+                .start => self.shortcut_capture_start_count += 1,
+                .stop => self.shortcut_capture_stop_count += 1,
+            },
+        }
+    }
+
+    pub fn recordOutcome(self: *PlatformFeatureState, outcome: PlatformFeatureOutcome) void {
+        self.last_outcome = outcome;
+        switch (outcome) {
+            .not_executed => {},
+            .succeeded => self.succeeded_count += 1,
+            .unsupported => self.unsupported_count += 1,
+            .failed => self.failed_count += 1,
+        }
+    }
+};
+
 pub const WindowActionState = struct {
     close_count: u32 = 0,
     minimize_count: u32 = 0,
@@ -4881,6 +4926,7 @@ pub fn Effects(comptime Msg: type) type {
         /// Window-action mirror: counts and the last requested label,
         /// observable in tests (`windowActionState`).
         window_action_state: WindowActionState = .{},
+        platform_feature_state: PlatformFeatureState = .{},
         /// The environment spawned children inherit and fetch honors
         /// (PATH for `spawnPath`-style lookups, proxy variables).
         /// Bound once from the loop thread before the first real
@@ -10406,6 +10452,35 @@ pub fn Effects(comptime Msg: type) type {
         /// requested.
         pub fn windowActionState(self: *const Self) WindowActionState {
             return self.window_action_state;
+        }
+
+        pub fn platformFeature(self: *Self, feature: PlatformFeatureId, verb: PlatformFeatureVerb) void {
+            self.platform_feature_state.record(feature, verb);
+            if (self.executor == .fake) return;
+
+            const services = self.services orelse {
+                self.platform_feature_state.recordOutcome(.unsupported);
+                return;
+            };
+
+            switch (feature) {
+                .shortcut_capture => switch (verb) {
+                    .start => services.startShortcutCapture() catch |err| {
+                        self.platform_feature_state.recordOutcome(if (err == error.UnsupportedService) .unsupported else .failed);
+                        return;
+                    },
+                    .stop => services.stopShortcutCapture() catch |err| {
+                        self.platform_feature_state.recordOutcome(if (err == error.UnsupportedService) .unsupported else .failed);
+                        return;
+                    },
+                },
+            }
+
+            self.platform_feature_state.recordOutcome(.succeeded);
+        }
+
+        pub fn platformFeatureState(self: *const Self) PlatformFeatureState {
+            return self.platform_feature_state;
         }
 
         /// Set playback volume, clamped to 0.0—1.0. Remembered across

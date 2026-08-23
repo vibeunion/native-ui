@@ -98,6 +98,8 @@ export interface Model {
   readonly fileTotal: number;
   readonly fileExists: boolean;
   readonly settingsOpen: boolean;
+  readonly capturedShortcutKey: Uint8Array;
+  readonly capturedShortcutModifiers: number;
 }
 
 export type Msg =
@@ -185,7 +187,8 @@ export type Msg =
   | { readonly kind: "pty_evt"; readonly key: Uint8Array; readonly state: PtyState; readonly bytes: Uint8Array; readonly code: number; readonly reason: PtyExitReason; readonly signal: number; readonly droppedWrites: number }
   | { readonly kind: "store_scan_invalid" }
   | { readonly kind: "open_settings" }
-  | { readonly kind: "close_settings"; readonly reason: Uint8Array };
+  | { readonly kind: "close_settings"; readonly reason: Uint8Array }
+  | { readonly kind: "shortcut_captured"; readonly key: Uint8Array; readonly modifiers: number };
 
 export function initialModel(): [Model, Cmd<Msg>] {
   return [
@@ -238,6 +241,8 @@ export function initialModel(): [Model, Cmd<Msg>] {
       fileTotal: 0,
       fileExists: false,
       settingsOpen: false,
+      capturedShortcutKey: new Uint8Array(0),
+      capturedShortcutModifiers: 0,
     },
     Cmd.request("status.read", asciiBytes("boot"), { key: "status", ok: "loaded", err: "failed" }),
   ];
@@ -562,6 +567,8 @@ export function update(model: Model, msg: Msg): [Model, Cmd<Msg>] {
       return [{ ...model, settingsOpen: true }, Cmd.none];
     case "close_settings":
       return [{ ...model, settingsOpen: false, status: msg.reason }, Cmd.none];
+    case "shortcut_captured":
+      return [{ ...model, capturedShortcutKey: msg.key, capturedShortcutModifiers: msg.modifiers }, Cmd.none];
   }
 }
 
@@ -670,6 +677,8 @@ export function statusItem(model: Model): StatusItemState {
 }
 
 export function commandMsg(name: string): Msg | null {
+  if (name === "__capture__:21:6b") return { kind: "shortcut_captured", key: asciiBytes("k"), modifiers: 21 };
+  if (name === "__capture__:0:") return { kind: "shortcut_captured", key: new Uint8Array(0), modifiers: 0 };
   if (name === "core.enable") return { kind: "enable" };
   if (name === "core.disable") return { kind: "disable" };
   if (name === "core.toggle") return { kind: "toggle" };

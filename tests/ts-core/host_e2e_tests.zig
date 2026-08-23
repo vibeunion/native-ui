@@ -63,6 +63,9 @@ fn e2eWindowView(ui: *App.Ui, model: *const fixture.Model, label: []const u8) Ap
 }
 
 fn e2eCommand(name: []const u8) ?fixture.Msg {
+    // Prefer the compiled fixture's real ABI mapper. The handwritten
+    // fallbacks only expose effect-driving commands omitted from commandMsg.
+    if (fixture.commandMsg(name)) |msg| return msg;
     if (std.mem.eql(u8, name, "core.toggle")) return .toggle;
     if (std.mem.eql(u8, name, "core.enable")) return .enable;
     if (std.mem.eql(u8, name, "core.disable")) return .disable;
@@ -329,6 +332,10 @@ const Harness = struct {
         try self.harness.runtime.dispatchPlatformEvent(self.app, .{ .menu_command = .{ .name = name, .window_id = 1 } });
     }
 
+    fn shortcut(self: *Harness, event: native_sdk.ShortcutEvent) !void {
+        try self.harness.runtime.dispatchPlatformEvent(self.app, .{ .shortcut = event });
+    }
+
     fn wake(self: *Harness) !void {
         try self.harness.runtime.dispatchPlatformEvent(self.app, .wake);
     }
@@ -426,6 +433,43 @@ test "the compiled core boots through init_fx: boot request and subscription tim
     try std.testing.expectEqual(@as(i64, 0), Bridge.model().ticks);
     try std.testing.expect(h.app_state.model.polling);
     try std.testing.expectEqual(@as(i64, 0), h.app_state.model.ticks);
+}
+
+test "shortcut capture projects through compiled commandMsg into the TypeScript model" {
+    HostStub.reset();
+    const h = try Harness.create();
+    defer h.destroy();
+
+    const completed_msg = fixture.commandMsg("__capture__:21:6b") orelse return error.CommandMapperRejectedCapture;
+    switch (completed_msg) {
+        .shortcut_captured => |capture| {
+            try std.testing.expectEqualStrings("k", capture.key);
+            try std.testing.expectEqual(@as(f64, 21), capture.modifiers);
+        },
+        else => return error.CommandMapperReturnedWrongVariant,
+    }
+
+    try h.shortcut(.{
+        .id = "__capture__",
+        .key = "k",
+        .window_id = 1,
+        .modifiers = .{ .primary = true, .control = true, .shift = true },
+    });
+    try std.testing.expectEqualStrings("k", Bridge.model().capturedShortcutKey);
+    try std.testing.expectEqual(@as(i64, 21), Bridge.model().capturedShortcutModifiers);
+
+    const cancelled_msg = fixture.commandMsg("__capture__:0:") orelse return error.CommandMapperRejectedCancellation;
+    switch (cancelled_msg) {
+        .shortcut_captured => |capture| {
+            try std.testing.expectEqual(@as(usize, 0), capture.key.len);
+            try std.testing.expectEqual(@as(f64, 0), capture.modifiers);
+        },
+        else => return error.CommandMapperReturnedWrongVariant,
+    }
+
+    try h.shortcut(.{ .id = "__capture__", .key = "", .window_id = 1 });
+    try std.testing.expectEqual(@as(usize, 0), Bridge.model().capturedShortcutKey.len);
+    try std.testing.expectEqual(@as(i64, 0), Bridge.model().capturedShortcutModifiers);
 }
 
 test "the compiled core's statusItem helper installs and updates title and menu" {

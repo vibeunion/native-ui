@@ -1385,7 +1385,11 @@ export type Cmd<M extends Msgish> =
   | { readonly op: "pty_write"; readonly key: string; readonly bytes: Uint8Array }
   | { readonly op: "pty_resize"; readonly key: string; readonly cols: number; readonly rows: number }
   | { readonly op: "pty_kill"; readonly key: string }
+  | { readonly op: "platform_feature"; readonly feature: PlatformFeature; readonly verb: PlatformFeatureVerb }
   | { readonly op: "batch"; readonly cmds: readonly Cmd<M>[] };
+
+export type PlatformFeature = "shortcut_capture";
+export type PlatformFeatureVerb = "start" | "stop";
 
 /// The wire encoding of a host record payload, byte-identical to what the
 /// transpiler derives from the record's TS shape at build time: fields
@@ -2204,6 +2208,10 @@ export const Cmd = {
   /// — this is their kill, the way `Cmd.audioStop` is audio's close.
   ptyKill(key: string): Cmd<never> {
     return { op: "pty_kill", key };
+  },
+
+  platformFeature(feature: PlatformFeature, verb: PlatformFeatureVerb): Cmd<never> {
+    return { op: "platform_feature", feature, verb };
   },
 
   /// Several commands from one dispatch, performed in order.

@@ -114,6 +114,90 @@ test "runtime dispatches shortcut command events" {
     try std.testing.expectEqual(@as(platform.WindowId, 1), app_state.last_window_id);
 }
 
+test "runtime projects shortcut capture data onto the TypeScript command channel" {
+    const TestApp = struct {
+        command_name: [128]u8 = undefined,
+        command_name_len: usize = 0,
+        shortcut_key: [platform.max_shortcut_key_bytes]u8 = undefined,
+        shortcut_key_len: usize = 0,
+        shortcut_modifiers: platform.ShortcutModifiers = .{},
+
+        fn app(self: *@This()) App {
+            return .{ .context = self, .name = "shortcut-capture-command", .source = platform.WebViewSource.html("<h1>Shortcut capture</h1>"), .event_fn = event };
+        }
+
+        fn event(context: *anyopaque, runtime: *Runtime, event_value: Event) anyerror!void {
+            _ = runtime;
+            const self: *@This() = @ptrCast(@alignCast(context));
+            switch (event_value) {
+                .command => |command| {
+                    self.command_name_len = @min(command.name.len, self.command_name.len);
+                    @memcpy(self.command_name[0..self.command_name_len], command.name[0..self.command_name_len]);
+                },
+                .shortcut => |shortcut| {
+                    self.shortcut_key_len = @min(shortcut.key.len, self.shortcut_key.len);
+                    @memcpy(self.shortcut_key[0..self.shortcut_key_len], shortcut.key[0..self.shortcut_key_len]);
+                    self.shortcut_modifiers = shortcut.modifiers;
+                },
+                else => {},
+            }
+        }
+    };
+
+    const harness = try TestHarness().create(std.testing.allocator, .{});
+    defer harness.destroy(std.testing.allocator);
+    var app_state: TestApp = .{};
+    try harness.start(app_state.app());
+
+    try harness.runtime.dispatchPlatformEvent(app_state.app(), .{ .shortcut = .{
+        .id = "__capture__",
+        .key = "k",
+        .window_id = 1,
+        .modifiers = .{ .primary = true, .control = true, .shift = true },
+    } });
+
+    try std.testing.expectEqualStrings("__capture__:21:6b", app_state.command_name[0..app_state.command_name_len]);
+    try std.testing.expectEqualStrings("k", app_state.shortcut_key[0..app_state.shortcut_key_len]);
+    try std.testing.expect(app_state.shortcut_modifiers.primary);
+    try std.testing.expect(app_state.shortcut_modifiers.control);
+    try std.testing.expect(app_state.shortcut_modifiers.shift);
+}
+
+test "shortcut capture command projection hex-encodes command-unsafe keys" {
+    const TestApp = struct {
+        command_names: [2][128]u8 = undefined,
+        command_name_lens: [2]usize = .{ 0, 0 },
+        command_count: usize = 0,
+
+        fn app(self: *@This()) App {
+            return .{ .context = self, .name = "shortcut-capture-unsafe-keys", .source = platform.WebViewSource.html("<h1>Shortcut capture</h1>"), .event_fn = event };
+        }
+
+        fn event(context: *anyopaque, runtime: *Runtime, event_value: Event) anyerror!void {
+            _ = runtime;
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (event_value != .command or self.command_count >= self.command_names.len) return;
+            const command = event_value.command;
+            const len = @min(command.name.len, self.command_names[self.command_count].len);
+            @memcpy(self.command_names[self.command_count][0..len], command.name[0..len]);
+            self.command_name_lens[self.command_count] = len;
+            self.command_count += 1;
+        }
+    };
+
+    const harness = try TestHarness().create(std.testing.allocator, .{});
+    defer harness.destroy(std.testing.allocator);
+    var app_state: TestApp = .{};
+    try harness.start(app_state.app());
+
+    try harness.runtime.dispatchPlatformEvent(app_state.app(), .{ .shortcut = .{ .id = "__capture__", .key = "/", .window_id = 1 } });
+    try harness.runtime.dispatchPlatformEvent(app_state.app(), .{ .shortcut = .{ .id = "__capture__", .key = "\\", .window_id = 1 } });
+
+    try std.testing.expectEqual(@as(usize, 2), app_state.command_count);
+    try std.testing.expectEqualStrings("__capture__:0:2f", app_state.command_names[0][0..app_state.command_name_lens[0]]);
+    try std.testing.expectEqualStrings("__capture__:0:5c", app_state.command_names[1][0..app_state.command_name_lens[1]]);
+}
+
 test "runtime configures platform menus" {
     const TestApp = struct {
         fn app(self: *@This()) App {
@@ -164,6 +248,22 @@ test "runtime rejects invalid keyboard shortcuts" {
 
     const long_id = [_]u8{'x'} ** (platform.max_shortcut_id_bytes + 1);
     const shortcuts = [_]platform.Shortcut{.{ .id = long_id[0..], .key = "p" }};
+    const harness = try TestHarness().create(std.testing.allocator, .{});
+    defer harness.destroy(std.testing.allocator);
+    harness.runtime.options.shortcuts = &shortcuts;
+    var app_state: TestApp = .{};
+
+    try std.testing.expectError(error.InvalidShortcut, harness.runtime.run(app_state.app()));
+}
+
+test "runtime reserves the shortcut capture command id" {
+    const TestApp = struct {
+        fn app(self: *@This()) App {
+            return .{ .context = self, .name = "reserved-shortcut-id", .source = platform.WebViewSource.html("<h1>Shortcuts</h1>") };
+        }
+    };
+
+    const shortcuts = [_]platform.Shortcut{.{ .id = "__capture__", .key = "k", .modifiers = .{ .primary = true } }};
     const harness = try TestHarness().create(std.testing.allocator, .{});
     defer harness.destroy(std.testing.allocator);
     harness.runtime.options.shortcuts = &shortcuts;

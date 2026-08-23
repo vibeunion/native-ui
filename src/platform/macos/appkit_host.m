@@ -41,6 +41,7 @@ static const uint32_t NativeSdkShortcutModifierCommand = 1u << 1;
 static const uint32_t NativeSdkShortcutModifierControl = 1u << 2;
 static const uint32_t NativeSdkShortcutModifierOption = 1u << 3;
 static const uint32_t NativeSdkShortcutModifierShift = 1u << 4;
+static const NSUInteger NativeSdkMaxShortcutKeyBytes = 32;
 
 // SMAppService is resolved dynamically so the host keeps its existing
 // deployment target. Class lookup alone does not load the framework, so
@@ -1020,6 +1021,8 @@ static int NativeSdkCredentialStatus(OSStatus status, int missingCode) {
 @property(nonatomic, assign) BOOL observesAppearanceChanges;
 @property(nonatomic, assign) NSInteger bridgeFrameKeepalive;
 @property(nonatomic, strong) id shortcutEventMonitor;
+@property(nonatomic, assign) BOOL shortcutCaptureMode;
+@property(nonatomic, assign) uint64_t shortcutCaptureWindowId;
 @property(nonatomic, strong) id viewFocusEventMonitor;
 @property(nonatomic, strong) id willTerminateObserver;
 @property(nonatomic, strong) dispatch_source_t sigtermSource;
@@ -1192,6 +1195,12 @@ static int NativeSdkCredentialStatus(OSStatus status, int missingCode) {
 - (void)completeBridgeWithResponse:(NSString *)response windowId:(uint64_t)windowId webViewLabel:(NSString *)webViewLabel;
 - (void)emitEventNamed:(NSString *)name detailJSON:(NSString *)detailJSON windowId:(uint64_t)windowId;
 - (void)setShortcutsWithIds:(const char *const *)ids idLengths:(const size_t *)idLengths keys:(const char *const *)keys keyLengths:(const size_t *)keyLengths modifiers:(const uint32_t *)modifiers count:(size_t)count;
+- (void)startShortcutCapture;
+- (void)stopShortcutCapture;
+- (void)cancelShortcutCapture;
+- (void)cancelShortcutCaptureForWindowId:(uint64_t)windowId;
+- (void)emitShortcutCaptureKey:(NSString *)key modifiers:(uint32_t)modifiers windowId:(uint64_t)windowId;
+- (BOOL)handleShortcutCaptureEvent:(NSEvent *)event;
 - (BOOL)handleShortcutEvent:(NSEvent *)event;
 - (void)emitShortcutWithId:(NSString *)identifier key:(NSString *)key modifiers:(uint32_t)modifiers event:(NSEvent *)event;
 @end
@@ -1367,8 +1376,14 @@ static NSPoint NativeSdkViewLocalYDownPoint(NSView *view, NSPoint point) {
     return NO;
 }
 
+- (void)windowDidResignKey:(NSNotification *)notification {
+    (void)notification;
+    [self.host cancelShortcutCaptureForWindowId:self.windowId];
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification;
+    [self.host cancelShortcutCaptureForWindowId:self.windowId];
     if (self.observesContentLayout) {
         NSWindow *window = self.host.windows[@(self.windowId)];
         [window removeObserver:self forKeyPath:@"contentLayoutRect"];
@@ -9904,13 +9919,18 @@ static void NativeSdkApplyProcessDisplayName(NSString *displayName) {
     }
     if (!self.shortcutEventMonitor) {
         __weak NativeSdkAppKitHost *weakSelf = self;
-        self.shortcutEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
+        self.shortcutEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:(NSEventMaskKeyDown | NSEventMaskFlagsChanged) handler:^NSEvent *(NSEvent *event) {
             NativeSdkAppKitHost *strongSelf = weakSelf;
             if (!strongSelf) return event;
-            // An adopted surface with the keyboard (a VM display) gets raw
-            // keys; app shortcuts resume when focus returns to app chrome.
             NSResponder *first = event.window.firstResponder;
-            if ([first isKindOfClass:[NSView class]] && [strongSelf viewIsAdoptedSurfaceDescendant:(NSView *)first]) return event;
+            if ([first isKindOfClass:[NSView class]] && [strongSelf viewIsAdoptedSurfaceDescendant:(NSView *)first]) {
+                [strongSelf cancelShortcutCapture];
+                return event;
+            }
+            if (strongSelf.shortcutCaptureMode) {
+                return [strongSelf handleShortcutCaptureEvent:event] ? nil : event;
+            }
+            if (event.type == NSEventTypeFlagsChanged) return event;
             if ([strongSelf handleShortcutEvent:event]) return nil;
             return event;
         }];
@@ -10029,6 +10049,7 @@ static void NativeSdkApplyProcessDisplayName(NSString *displayName) {
     [self audioCaptureStopSource:1];
     [self audioStop];
     [self videoStop];
+    [self stopShortcutCapture];
     if (self.shortcutEventMonitor) {
         [NSEvent removeMonitor:self.shortcutEventMonitor];
         self.shortcutEventMonitor = nil;
@@ -10101,6 +10122,7 @@ static void NativeSdkApplyProcessDisplayName(NSString *displayName) {
 
 - (void)applicationDidResignActive:(NSNotification *)notification {
     (void)notification;
+    [self cancelShortcutCapture];
     [self emitEvent:(native_sdk_appkit_event_t){ .kind = NATIVE_SDK_APPKIT_EVENT_APP_DEACTIVATED }];
 }
 
@@ -12066,6 +12088,89 @@ static void NativeSdkVideoFittedSize(double naturalWidth, double naturalHeight, 
     [self scheduleBridgeFrames];
 }
 
+- (void)startShortcutCapture {
+    NSWindow *window = NSApp.keyWindow;
+    if (!NSApp.isActive || !window) {
+        [self stopShortcutCapture];
+        return;
+    }
+    uint64_t windowId = 0;
+    for (NSNumber *keyValue in self.windows) {
+        if (self.windows[keyValue] == window) {
+            windowId = keyValue.unsignedLongLongValue;
+            break;
+        }
+    }
+    if (windowId == 0) {
+        [self stopShortcutCapture];
+        return;
+    }
+    self.shortcutCaptureMode = YES;
+    self.shortcutCaptureWindowId = windowId;
+}
+
+- (void)stopShortcutCapture {
+    self.shortcutCaptureMode = NO;
+    self.shortcutCaptureWindowId = 0;
+}
+
+- (void)cancelShortcutCapture {
+    if (!self.shortcutCaptureMode) return;
+    uint64_t windowId = self.shortcutCaptureWindowId;
+    [self stopShortcutCapture];
+    [self emitShortcutCaptureKey:@"" modifiers:0 windowId:windowId];
+}
+
+- (void)cancelShortcutCaptureForWindowId:(uint64_t)windowId {
+    if (self.shortcutCaptureMode && self.shortcutCaptureWindowId == windowId) {
+        [self cancelShortcutCapture];
+    }
+}
+
+- (void)emitShortcutCaptureKey:(NSString *)key modifiers:(uint32_t)modifiers windowId:(uint64_t)windowId {
+    const char *identifierBytes = "__capture__";
+    const char *keyBytes = key.UTF8String ? key.UTF8String : "";
+    [self emitEvent:(native_sdk_appkit_event_t){
+        .kind = NATIVE_SDK_APPKIT_EVENT_SHORTCUT,
+        .window_id = windowId,
+        .shortcut_id = identifierBytes,
+        .shortcut_id_len = strlen(identifierBytes),
+        .shortcut_key = keyBytes,
+        .shortcut_key_len = [key lengthOfBytesUsingEncoding:NSUTF8StringEncoding],
+        .shortcut_modifiers = modifiers,
+    }];
+}
+
+- (BOOL)handleShortcutCaptureEvent:(NSEvent *)event {
+    if (!self.shortcutCaptureMode) return NO;
+    NSWindow *ownerWindow = self.windows[@(self.shortcutCaptureWindowId)];
+    NSWindow *eventWindow = event.window ?: NSApp.keyWindow;
+    if (!ownerWindow || eventWindow != ownerWindow || !ownerWindow.isKeyWindow || !NSApp.isActive) {
+        [self cancelShortcutCapture];
+        return NO;
+    }
+    if (event.type == NSEventTypeFlagsChanged) {
+        return YES;
+    }
+    if (event.type != NSEventTypeKeyDown) return NO;
+    if (event.isARepeat) return YES;
+    NSString *key = NativeSdkShortcutKeyForEvent(event);
+    if ([key isEqualToString:@"escape"]) {
+        [self cancelShortcutCapture];
+        return YES;
+    }
+    if (key.length == 0) return YES;
+    if ([key lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > NativeSdkMaxShortcutKeyBytes) {
+        [self cancelShortcutCapture];
+        return YES;
+    }
+    uint32_t modifiers = NativeSdkModifierFlagsForEvent(event);
+    uint64_t windowId = self.shortcutCaptureWindowId;
+    [self stopShortcutCapture];
+    [self emitShortcutCaptureKey:key modifiers:modifiers windowId:windowId];
+    return YES;
+}
+
 - (BOOL)handleShortcutEvent:(NSEvent *)event {
     if (event.type != NSEventTypeKeyDown) return NO;
     NSString *key = NativeSdkShortcutKeyForEvent(event);
@@ -12780,6 +12885,16 @@ void native_sdk_appkit_set_menus(native_sdk_appkit_host_t *host, const char *con
 void native_sdk_appkit_set_shortcuts(native_sdk_appkit_host_t *host, const char *const *ids, const size_t *id_lens, const char *const *keys, const size_t *key_lens, const uint32_t *modifiers, size_t count) {
     NativeSdkAppKitHost *object = (__bridge NativeSdkAppKitHost *)host;
     [object setShortcutsWithIds:ids idLengths:id_lens keys:keys keyLengths:key_lens modifiers:modifiers count:count];
+}
+
+void native_sdk_appkit_start_shortcut_capture(native_sdk_appkit_host_t *host) {
+    NativeSdkAppKitHost *object = (__bridge NativeSdkAppKitHost *)host;
+    [object startShortcutCapture];
+}
+
+void native_sdk_appkit_stop_shortcut_capture(native_sdk_appkit_host_t *host) {
+    NativeSdkAppKitHost *object = (__bridge NativeSdkAppKitHost *)host;
+    [object stopShortcutCapture];
 }
 
 int native_sdk_appkit_create_window(native_sdk_appkit_host_t *host, uint64_t window_id, const char *window_title, size_t window_title_len, const char *window_label, size_t window_label_len, double x, double y, double width, double height, int restore_frame, int initial_placement, int restore_policy, int resizable, int titlebar_style, int show_policy, uint32_t window_flags) {

@@ -189,6 +189,7 @@ pub const PlatformFeature = enum {
     /// verbs with a teaching and `error.UnsupportedService` — named
     /// unsupported, not half-implemented — and report false here.
     video_playback,
+    shortcut_capture,
 };
 
 pub const WebViewSourceKind = enum {
@@ -362,6 +363,8 @@ pub const ShortcutEvent = struct {
     window_id: WindowId = 1,
 };
 
+pub const shortcut_capture_command_id = "__capture__";
+
 pub const Menu = struct {
     title: []const u8,
     items: []const MenuItem = &.{},
@@ -379,6 +382,7 @@ pub const MenuItem = struct {
 
 pub fn validateShortcut(shortcut: Shortcut) Error!void {
     if (!isValidCommandId(shortcut.id, max_shortcut_id_bytes)) return error.InvalidShortcut;
+    if (std.mem.eql(u8, shortcut.id, shortcut_capture_command_id)) return error.InvalidShortcut;
     if (!isValidShortcutBinding(shortcut.key, shortcut.modifiers)) return error.InvalidShortcut;
 }
 
@@ -2784,6 +2788,8 @@ pub const PlatformServices = struct {
     configure_security_policy_fn: ?*const fn (context: ?*anyopaque, policy: security.Policy) anyerror!void = null,
     configure_menus_fn: ?*const fn (context: ?*anyopaque, menus: []const Menu) anyerror!void = null,
     configure_shortcuts_fn: ?*const fn (context: ?*anyopaque, shortcuts: []const Shortcut) anyerror!void = null,
+    start_shortcut_capture_fn: ?*const fn (context: ?*anyopaque) anyerror!void = null,
+    stop_shortcut_capture_fn: ?*const fn (context: ?*anyopaque) anyerror!void = null,
     emit_window_event_fn: ?*const fn (context: ?*anyopaque, window_id: WindowId, name: []const u8, detail_json: []const u8) anyerror!void = null,
     request_gpu_surface_frame_fn: ?*const fn (context: ?*anyopaque, window_id: WindowId, label: []const u8) anyerror!void = null,
     /// Input was dispatched to the surface: hosts that throttle occluded
@@ -3428,6 +3434,16 @@ pub const PlatformServices = struct {
         return configure_fn(self.context, shortcuts);
     }
 
+    pub fn startShortcutCapture(self: PlatformServices) anyerror!void {
+        const start_fn = self.start_shortcut_capture_fn orelse return error.UnsupportedService;
+        return start_fn(self.context);
+    }
+
+    pub fn stopShortcutCapture(self: PlatformServices) anyerror!void {
+        const stop_fn = self.stop_shortcut_capture_fn orelse return error.UnsupportedService;
+        return stop_fn(self.context);
+    }
+
     pub fn emitWindowEvent(self: PlatformServices, window_id: WindowId, name: []const u8, detail_json: []const u8) anyerror!void {
         const emit_fn = self.emit_window_event_fn orelse return error.UnsupportedService;
         return emit_fn(self.context, window_id, name, detail_json);
@@ -3745,6 +3761,7 @@ fn defaultSupportsFeature(services: PlatformServices, feature: PlatformFeature) 
         .menus => services.configure_menus_fn != null,
         .tray => services.create_tray_fn != null,
         .shortcuts => services.configure_shortcuts_fn != null,
+        .shortcut_capture => services.start_shortcut_capture_fn != null and services.stop_shortcut_capture_fn != null,
         .dialogs => services.show_open_dialog_fn != null or services.show_save_dialog_fn != null or services.show_message_dialog_fn != null,
         .clipboard_text => services.read_clipboard_fn != null and services.write_clipboard_fn != null,
         .clipboard_rich_data => services.read_clipboard_data_fn != null and services.write_clipboard_data_fn != null,
@@ -3791,3 +3808,39 @@ pub const Backend = enum {
     linux,
     windows,
 };
+
+test "shortcut capture capability requires both service verbs" {
+    const TestContext = struct {
+        fn run(context: *anyopaque, handler: EventHandler, handler_context: *anyopaque) anyerror!void {
+            _ = context;
+            _ = handler;
+            _ = handler_context;
+        }
+
+        fn verb(context: ?*anyopaque) anyerror!void {
+            _ = context;
+        }
+    };
+
+    var context: u8 = 0;
+    var services: PlatformServices = .{};
+    var platform_value: Platform = .{
+        .context = &context,
+        .name = "test",
+        .surface_value = undefined,
+        .run_fn = TestContext.run,
+        .services = services,
+    };
+
+    try std.testing.expect(!platform_value.supports(.shortcut_capture));
+    services.start_shortcut_capture_fn = TestContext.verb;
+    platform_value.services = services;
+    try std.testing.expect(!platform_value.supports(.shortcut_capture));
+    services.start_shortcut_capture_fn = null;
+    services.stop_shortcut_capture_fn = TestContext.verb;
+    platform_value.services = services;
+    try std.testing.expect(!platform_value.supports(.shortcut_capture));
+    services.start_shortcut_capture_fn = TestContext.verb;
+    platform_value.services = services;
+    try std.testing.expect(platform_value.supports(.shortcut_capture));
+}

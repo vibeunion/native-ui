@@ -6,6 +6,7 @@ const ValidationError = types.ValidationError;
 const max_shortcuts = types.max_shortcuts;
 const max_shortcut_id_bytes = types.max_shortcut_id_bytes;
 const max_shortcut_key_bytes = types.max_shortcut_key_bytes;
+const shortcut_capture_command_id = types.shortcut_capture_command_id;
 const max_shell_windows = types.max_shell_windows;
 const max_shell_views_per_window = types.max_shell_views_per_window;
 const max_view_label_bytes = types.max_view_label_bytes;
@@ -396,6 +397,7 @@ pub fn validateShortcutsForPlatforms(shortcuts: []const Shortcut, platforms: []c
     for (shortcuts, 0..) |shortcut, i| {
         if (shortcut.id.len > max_shortcut_id_bytes) return error.InvalidShortcut;
         try validateName(shortcut.id);
+        if (std.mem.eql(u8, shortcut.id, shortcut_capture_command_id)) return error.InvalidShortcut;
         try validateShortcutKey(shortcut.key);
         if (!shortcutModifiersHasAny(shortcut.modifiers) and shortcutRequiresModifier(shortcut.key)) return error.InvalidShortcut;
         for (shortcuts[0..i]) |previous| {

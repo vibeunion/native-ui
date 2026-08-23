@@ -1032,6 +1032,7 @@ pub const NullPlatform = struct {
             .audio_spectrum => self.audio_playback and self.audio_spectrum,
             .microphone_capture => self.microphone_capture,
             .system_audio_capture => self.system_audio_capture,
+            .shortcut_capture => false,
             .video_playback => self.video_playback,
         };
     }

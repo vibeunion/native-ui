@@ -352,6 +352,13 @@ test "manifest validates keyboard shortcuts" {
     };
     try validateManifest(macos_control_distinct);
 
+    const reserved_capture_id: Manifest = .{
+        .identity = .{ .id = "com.example.app", .name = "example" },
+        .version = .{ .major = 1, .minor = 0, .patch = 0 },
+        .shortcuts = &.{.{ .id = types.shortcut_capture_command_id, .key = "k", .modifiers = .{ .primary = true } }},
+    };
+    try std.testing.expectError(error.InvalidShortcut, validateManifest(reserved_capture_id));
+
     const invalid_key: Manifest = .{
         .identity = .{ .id = "com.example.app", .name = "example" },
         .version = .{ .major = 1, .minor = 0, .patch = 0 },

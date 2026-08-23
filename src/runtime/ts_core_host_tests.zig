@@ -1,7 +1,7 @@
 //! Bridge coverage for `TsCoreHost` against a hand-written core that
 //! replicates the transpiler's emitted ABI (rt kernel, commit walker,
 //! `UpdateResult`/`InitResult`, wire-encoded commands and
-//! subscriptions). Hand-encoding the wire records here pins the v5
+//! subscriptions). Hand-encoding the wire records here pins the v8
 //! byte layout independently of the rt builders that normally produce
 //! it; the transpiled-fixture end-to-end suite (tests/ts-core) drives
 //! the same bridge with genuinely emitted code through a full UiApp.
@@ -18,7 +18,7 @@ const platform = @import("../platform/root.zig");
 //
 // The emitted-core ABI in miniature: a two-region kernel, a poller
 // model, and an update that exercises every wire record. Cmd/Sub bytes
-// are hand-encoded to the documented v4 layout. Polling starts OFF so
+// are hand-encoded to the documented v8 layout. Polling starts OFF so
 // the real-executor tests below (which bind no platform timer service)
 // never arm a timer; the e2e suite covers boot-time subscriptions
 // through a full UiApp with live null-platform services.
@@ -340,6 +340,8 @@ const mini_core = struct {
         write_save_chunk, // 103: write_file_chunk "save" -> wrote/failed
         close_save_sink, // 104: write_file_close "save" -> wrote/failed
         dock_on, // 105: dock_presence true
+        start_shortcut_capture, // 106: platform_feature shortcut_capture/start
+        stop_shortcut_capture, // 107: platform_feature shortcut_capture/stop
     };
 
     const stream_fill_keys = [_][]const u8{
@@ -689,6 +691,8 @@ const mini_core = struct {
             .hide_win => return .{ .model = model, .cmd = cmdWindowHide("player") },
             .dock_off => return .{ .model = model, .cmd = cmdDockPresence(false) },
             .dock_on => return .{ .model = model, .cmd = cmdDockPresence(true) },
+            .start_shortcut_capture => return .{ .model = model, .cmd = cmdPlatformFeature(0x01, 0x01) },
+            .stop_shortcut_capture => return .{ .model = model, .cmd = cmdPlatformFeature(0x01, 0x02) },
             .quit_app => return .{ .model = model, .cmd = cmdQuitApp() },
             .open_chan => return .{ .model = model, .cmd = cmdChannelOpen(41, 47) },
             .close_chan => return .{ .model = model, .cmd = cmdChannelClose(41) },
@@ -911,7 +915,15 @@ const mini_core = struct {
         return out;
     }
 
-    // Hand-encoded v4 wire records (rt.zig's documented layout).
+    // Hand-encoded v8 wire records (rt.zig's documented layout).
+
+    fn cmdPlatformFeature(feature: u8, verb: u8) []const u8 {
+        const out = rt.frameAlloc(u8, 3);
+        out[0] = 0x33;
+        out[1] = feature;
+        out[2] = verb;
+        return out;
+    }
 
     fn cmdNow(msg_tag: u8) []const u8 {
         const out = rt.frameAlloc(u8, 2);
@@ -1376,7 +1388,109 @@ fn freshChannel() *Fx {
     return &channel;
 }
 
+const PlatformFeatureProbe = struct {
+    start_count: u32 = 0,
+    stop_count: u32 = 0,
+    outcome: enum { success, unsupported, failed } = .success,
+
+    fn start(context: ?*anyopaque) anyerror!void {
+        const self: *PlatformFeatureProbe = @ptrCast(@alignCast(context.?));
+        self.start_count += 1;
+        return self.result();
+    }
+
+    fn stop(context: ?*anyopaque) anyerror!void {
+        const self: *PlatformFeatureProbe = @ptrCast(@alignCast(context.?));
+        self.stop_count += 1;
+        return self.result();
+    }
+
+    fn result(self: *PlatformFeatureProbe) anyerror!void {
+        return switch (self.outcome) {
+            .success => {},
+            .unsupported => error.UnsupportedService,
+            .failed => error.PlatformFailure,
+        };
+    }
+};
+
 // -------------------------------------------------------------- tests
+
+test "platform feature wire records are exact" {
+    mini_core.rt.frameReset();
+    try std.testing.expectEqualSlices(u8, &.{ 0x33, 0x01, 0x01 }, mini_core.cmdPlatformFeature(0x01, 0x01));
+    mini_core.rt.frameReset();
+    try std.testing.expectEqualSlices(u8, &.{ 0x33, 0x01, 0x02 }, mini_core.cmdPlatformFeature(0x01, 0x02));
+}
+
+test "platform feature wire enums reject unknown values" {
+    try std.testing.expect(std.enums.fromInt(effects_mod.PlatformFeatureId, 0x00) == null);
+    try std.testing.expect(std.enums.fromInt(effects_mod.PlatformFeatureId, 0xff) == null);
+    try std.testing.expect(std.enums.fromInt(effects_mod.PlatformFeatureVerb, 0x00) == null);
+    try std.testing.expect(std.enums.fromInt(effects_mod.PlatformFeatureVerb, 0xff) == null);
+}
+
+test "platform feature effects keep fake execution hermetic and classify real outcomes" {
+    var probe: PlatformFeatureProbe = .{};
+    var services: platform.PlatformServices = .{
+        .context = &probe,
+        .start_shortcut_capture_fn = PlatformFeatureProbe.start,
+        .stop_shortcut_capture_fn = PlatformFeatureProbe.stop,
+    };
+
+    const fx = freshChannel();
+    defer fx.deinit();
+    fx.bindServices(&services);
+    fx.platformFeature(.shortcut_capture, .start);
+    try std.testing.expectEqual(@as(u32, 0), probe.start_count);
+    try std.testing.expectEqual(effects_mod.PlatformFeatureOutcome.not_executed, fx.platformFeatureState().last_outcome);
+
+    fx.executor = .real;
+    fx.platformFeature(.shortcut_capture, .start);
+    try std.testing.expectEqual(@as(u32, 1), probe.start_count);
+    try std.testing.expectEqual(effects_mod.PlatformFeatureOutcome.succeeded, fx.platformFeatureState().last_outcome);
+
+    probe.outcome = .unsupported;
+    fx.platformFeature(.shortcut_capture, .stop);
+    try std.testing.expectEqual(effects_mod.PlatformFeatureOutcome.unsupported, fx.platformFeatureState().last_outcome);
+
+    probe.outcome = .failed;
+    fx.platformFeature(.shortcut_capture, .stop);
+    const state = fx.platformFeatureState();
+    try std.testing.expectEqual(effects_mod.PlatformFeatureOutcome.failed, state.last_outcome);
+    try std.testing.expectEqual(@as(u32, 2), state.shortcut_capture_stop_count);
+}
+
+test "platform feature effects classify absent services as unsupported" {
+    const fx = freshChannel();
+    defer fx.deinit();
+    fx.executor = .real;
+    fx.platformFeature(.shortcut_capture, .start);
+    try std.testing.expectEqual(effects_mod.PlatformFeatureOutcome.unsupported, fx.platformFeatureState().last_outcome);
+}
+
+test "platform feature wire dispatch reaches bound services" {
+    var probe: PlatformFeatureProbe = .{};
+    var services: platform.PlatformServices = .{
+        .context = &probe,
+        .start_shortcut_capture_fn = PlatformFeatureProbe.start,
+        .stop_shortcut_capture_fn = PlatformFeatureProbe.stop,
+    };
+
+    const fx = freshChannel();
+    defer fx.deinit();
+    fx.bindServices(&services);
+    Host.init(fx);
+    fx.executor = .real;
+
+    Host.dispatch(fx, .start_shortcut_capture);
+    Host.dispatch(fx, .stop_shortcut_capture);
+
+    try std.testing.expectEqual(@as(u32, 1), probe.start_count);
+    try std.testing.expectEqual(@as(u32, 1), probe.stop_count);
+    try std.testing.expectEqual(@as(u32, 1), fx.platformFeatureState().shortcut_capture_start_count);
+    try std.testing.expectEqual(@as(u32, 1), fx.platformFeatureState().shortcut_capture_stop_count);
+}
 
 test "init commits the boot model and issues the init request before the first frame" {
     const fx = freshChannel();

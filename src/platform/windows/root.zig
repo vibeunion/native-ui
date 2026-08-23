@@ -152,6 +152,8 @@ extern fn native_sdk_windows_emit_window_event(host: *WindowsHost, window_id: u6
 extern fn native_sdk_windows_set_security_policy(host: *WindowsHost, allowed_origins: [*]const u8, allowed_origins_len: usize, external_urls: [*]const u8, external_urls_len: usize, external_action: c_int) void;
 extern fn native_sdk_windows_set_menus(host: *WindowsHost, menu_titles: [*]const [*]const u8, menu_title_lens: [*]const usize, menu_count: usize, item_menu_indices: [*]const u32, item_labels: [*]const [*]const u8, item_label_lens: [*]const usize, item_commands: [*]const [*]const u8, item_command_lens: [*]const usize, item_keys: [*]const [*]const u8, item_key_lens: [*]const usize, item_modifiers: [*]const u32, item_separators: [*]const c_int, item_enabled: [*]const c_int, item_checked: [*]const c_int, item_count: usize) c_int;
 extern fn native_sdk_windows_set_shortcuts(host: *WindowsHost, ids: [*]const [*]const u8, id_lens: [*]const usize, keys: [*]const [*]const u8, key_lens: [*]const usize, modifiers: [*]const u32, count: usize) void;
+extern fn native_sdk_windows_start_shortcut_capture(host: *WindowsHost) void;
+extern fn native_sdk_windows_stop_shortcut_capture(host: *WindowsHost) void;
 extern fn native_sdk_windows_create_window(host: *WindowsHost, window_id: u64, window_title: [*]const u8, window_title_len: usize, window_label: [*]const u8, window_label_len: usize, x: f64, y: f64, width: f64, height: f64, restore_frame: c_int, initial_placement: c_int, restore_policy: c_int, resizable: c_int, titlebar_style: c_int, min_width: f64, min_height: f64, show_policy: c_int, window_flags: u32) c_int;
 extern fn native_sdk_windows_start_window_drag(host: *WindowsHost, window_id: u64) c_int;
 extern fn native_sdk_windows_set_window_drag_regions(host: *WindowsHost, window_id: u64, label: [*]const u8, label_len: usize, rects: [*]const f64, exclusions: [*]const c_int, count: usize) c_int;
@@ -496,6 +498,8 @@ pub const WindowsPlatform = struct {
                 .configure_security_policy_fn = configureSecurityPolicy,
                 .configure_menus_fn = configureMenus,
                 .configure_shortcuts_fn = configureShortcuts,
+                .start_shortcut_capture_fn = if (self.web_engine == .system) startShortcutCapture else null,
+                .stop_shortcut_capture_fn = if (self.web_engine == .system) stopShortcutCapture else null,
                 .emit_window_event_fn = emitWindowEvent,
                 .start_timer_fn = startTimer,
                 .cancel_timer_fn = cancelTimer,
@@ -518,6 +522,7 @@ pub const WindowsPlatform = struct {
             .menus,
             .tray,
             .shortcuts,
+            .shortcut_capture,
             .dialogs,
             .clipboard_text,
             .clipboard_rich_data,
@@ -1936,6 +1941,16 @@ fn configureShortcuts(context: ?*anyopaque, shortcuts: []const platform_mod.Shor
     native_sdk_windows_set_shortcuts(self.host, ids[0..shortcuts.len].ptr, id_lens[0..shortcuts.len].ptr, keys[0..shortcuts.len].ptr, key_lens[0..shortcuts.len].ptr, modifiers[0..shortcuts.len].ptr, shortcuts.len);
 }
 
+fn startShortcutCapture(context: ?*anyopaque) anyerror!void {
+    const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
+    native_sdk_windows_start_shortcut_capture(self.host);
+}
+
+fn stopShortcutCapture(context: ?*anyopaque) anyerror!void {
+    const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
+    native_sdk_windows_stop_shortcut_capture(self.host);
+}
+
 fn shortcutModifierFlags(modifiers: platform_mod.ShortcutModifiers) u32 {
     var flags: u32 = 0;
     if (modifiers.primary) flags |= shortcut_modifier_primary;
@@ -2160,6 +2175,7 @@ test "windows chromium reports unsupported native surfaces" {
     try std.testing.expect(WindowsPlatform.supportsFeature(&system, .audio_playback));
     try std.testing.expect(WindowsPlatform.supportsFeature(&system, .audio_streaming));
     try std.testing.expect(WindowsPlatform.supportsFeature(&system, .context_menus));
+    try std.testing.expect(WindowsPlatform.supportsFeature(&system, .shortcut_capture));
 
     var chromium = testPlatformWithEngine(.chromium);
     try std.testing.expect(!WindowsPlatform.supportsFeature(&chromium, .main_webview));
@@ -2172,6 +2188,7 @@ test "windows chromium reports unsupported native surfaces" {
     try std.testing.expect(!WindowsPlatform.supportsFeature(&chromium, .audio_playback));
     try std.testing.expect(!WindowsPlatform.supportsFeature(&chromium, .audio_streaming));
     try std.testing.expect(!WindowsPlatform.supportsFeature(&chromium, .context_menus));
+    try std.testing.expect(!WindowsPlatform.supportsFeature(&chromium, .shortcut_capture));
 }
 
 test "windows hide-on-close support requires the declared tray (the only re-show affordance)" {
@@ -2669,6 +2686,19 @@ test "windows window focus includes focused native child views" {
     const focus_edge = host_source[focus_edge_at.?..];
     try std.testing.expect(std.mem.indexOf(u8, focus_edge, "HWND root = GetAncestor(hwnd, GA_ROOT);") != null);
     try std.testing.expect(std.mem.indexOf(u8, focus_edge, "entry.second.hwnd == root") != null);
+}
+
+test "windows shortcut capture is one-shot and preserves owner-child focus" {
+    const host_source = @embedFile("webview2_host.cpp");
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if (shortcutCaptureModifierKey(wparam)) return true;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if (!key_down || repeat) return true;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "if (wparam == VK_ESCAPE && key_down) {\n        cancelShortcutCaptureState(host);") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "stopShortcutCaptureState(host);\n    emitShortcutCapture(host, window->id, key, modifiers);") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "emitShortcutCapture(host, window_id, std::string(), 0);") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "GetAncestor(next_focus, GA_ROOT) == owner->hwnd") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "case WM_ACTIVATEAPP:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "case WM_CLOSE:\n            cancelShortcutCaptureState(host);") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "case WM_DESTROY:\n            cancelShortcutCaptureState(host);") != null);
 }
 
 test "windows webview focus reports the focused child label" {

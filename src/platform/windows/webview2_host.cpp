@@ -710,6 +710,8 @@ struct Host {
     std::vector<std::string> allowed_origins;
     std::vector<std::string> allowed_external_urls;
     std::vector<Shortcut> shortcuts;
+    bool shortcut_capture_mode = false;
+    uint64_t shortcut_capture_window_id = 0;
     std::vector<Menu> menus;
     std::map<uint32_t, std::string> menu_commands;
     std::vector<TrayItem> tray_items;
@@ -1644,6 +1646,84 @@ static void showTrayMenu(Host *host, HWND hwnd) {
     DestroyMenu(menu);
     if (command_id != 0) emitTrayActionForCommandId(host, displayed_items, command_id);
     PostMessageW(hwnd, WM_NULL, 0, 0);
+}
+
+static void stopShortcutCaptureState(Host *host) {
+    if (!host) return;
+    host->shortcut_capture_mode = false;
+    host->shortcut_capture_window_id = 0;
+}
+
+static void emitShortcutCapture(Host *host, uint64_t window_id, const std::string &key, uint32_t modifiers) {
+    if (!host || !host->callback) return;
+    static const char kCaptureId[] = "__capture__";
+    WindowsEvent event = {};
+    event.kind = kShortcut;
+    event.window_id = window_id;
+    event.shortcut_id = kCaptureId;
+    event.shortcut_id_len = sizeof(kCaptureId) - 1;
+    event.shortcut_key = key.c_str();
+    event.shortcut_key_len = key.size();
+    event.shortcut_modifiers = modifiers;
+    host->callback(host->callback_context, &event);
+}
+
+static void cancelShortcutCaptureState(Host *host) {
+    if (!host || !host->shortcut_capture_mode) return;
+    const uint64_t window_id = host->shortcut_capture_window_id;
+    stopShortcutCaptureState(host);
+    emitShortcutCapture(host, window_id, std::string(), 0);
+}
+
+static void cancelShortcutCaptureIfFocusLeavesOwner(Host *host, HWND next_focus) {
+    if (!host || !host->shortcut_capture_mode) return;
+    const Window *owner = windowForId(host, host->shortcut_capture_window_id);
+    if (owner && owner->hwnd && next_focus && GetAncestor(next_focus, GA_ROOT) == owner->hwnd) return;
+    cancelShortcutCaptureState(host);
+}
+
+static bool shortcutCaptureModifierKey(WPARAM wparam) {
+    return wparam == VK_SHIFT || wparam == VK_LSHIFT || wparam == VK_RSHIFT ||
+        wparam == VK_CONTROL || wparam == VK_LCONTROL || wparam == VK_RCONTROL ||
+        wparam == VK_MENU || wparam == VK_LMENU || wparam == VK_RMENU ||
+        wparam == VK_LWIN || wparam == VK_RWIN;
+}
+
+static uint32_t shortcutCaptureModifierFlags() {
+    uint32_t flags = 0;
+    if (keyDown(VK_CONTROL)) flags |= kShortcutModifierPrimary | kShortcutModifierControl;
+    if (keyDown(VK_MENU)) flags |= kShortcutModifierOption;
+    if (keyDown(VK_SHIFT)) flags |= kShortcutModifierShift;
+    if (keyDown(VK_LWIN) || keyDown(VK_RWIN)) flags |= kShortcutModifierCommand;
+    return flags;
+}
+
+static bool handleShortcutCaptureForWindow(Host *host, const Window *window, WPARAM wparam, bool key_down, bool repeat) {
+    if (!host || !host->shortcut_capture_mode) return false;
+    if (!window || window->id != host->shortcut_capture_window_id || !window->hwnd || GetForegroundWindow() != window->hwnd) {
+        cancelShortcutCaptureState(host);
+        return false;
+    }
+    if (wparam == VK_ESCAPE && key_down) {
+        cancelShortcutCaptureState(host);
+        return true;
+    }
+    if (shortcutCaptureModifierKey(wparam)) return true;
+    if (!key_down || repeat) return true;
+    std::string key = shortcutKeyFromWParam(wparam);
+    if (key.empty()) return true;
+    const uint32_t modifiers = shortcutCaptureModifierFlags();
+    stopShortcutCaptureState(host);
+    emitShortcutCapture(host, window->id, key, modifiers);
+    return true;
+}
+
+static bool handleShortcutCaptureForHwnd(Host *host, HWND hwnd, WPARAM wparam, bool key_down, bool repeat) {
+    return handleShortcutCaptureForWindow(host, windowForHwnd(host, hwnd), wparam, key_down, repeat);
+}
+
+static bool handleShortcutCaptureForWindowId(Host *host, uint64_t window_id, WPARAM wparam, bool key_down, bool repeat) {
+    return handleShortcutCaptureForWindow(host, windowForId(host, window_id), wparam, key_down, repeat);
 }
 
 static bool emitShortcutForWindow(Host *host, const Window *window, WPARAM wparam) {
@@ -3515,6 +3595,11 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
              * translated to no WM_CHAR (F-keys) must not leave it armed
              * to eat a later ordinary character. */
             view->gpu_shortcut_ate_char = false;
+            const bool repeat = (lparam & (1LL << 30)) != 0;
+            if (handleShortcutCaptureForHwnd(host, GetAncestor(hwnd, GA_ROOT), wparam, true, repeat)) {
+                view->gpu_shortcut_ate_char = true;
+                return 0;
+            }
             if (emitShortcutForHwnd(host, GetAncestor(hwnd, GA_ROOT), wparam)) {
                 /* The keystroke was consumed as a shortcut; its
                  * already-translated WM_CHAR (posted by the message
@@ -3534,6 +3619,7 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
             /* The shortcut keystroke's translated burst ended with its
              * release: disarm the char latch (see gpuSurfaceCharInput). */
             view->gpu_shortcut_ate_char = false;
+            if (handleShortcutCaptureForHwnd(host, GetAncestor(hwnd, GA_ROOT), wparam, false, false)) return 0;
             const std::string key = gpuSurfaceKeyName(wparam);
             if (!key.empty()) {
                 emitGpuSurfaceInput(host, *view, kGpuInputKeyUp, view->gpu_pointer_x, view->gpu_pointer_y, 0, 0, 0, key.c_str(), "", gpuModifierFlags());
@@ -3574,6 +3660,7 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
             }
             return 0;
         case WM_KILLFOCUS:
+            cancelShortcutCaptureIfFocusLeavesOwner(host, reinterpret_cast<HWND>(wparam));
             /* Mirror AppKit (unmarkText on resign) and GTK (focus-out
              * resets the IM context): composition cannot outlive focus. */
             if (!view->gpu_ime_preedit.empty()) {
@@ -5389,10 +5476,16 @@ static bool createChildWebView(Host *host, const std::string &key) {
                                 if (!token->alive || !args) return S_OK;
                                 COREWEBVIEW2_KEY_EVENT_KIND kind = COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN;
                                 if (FAILED(args->get_KeyEventKind(&kind))) return S_OK;
-                                if (kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN) return S_OK;
+                                const bool key_down = kind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN || kind == COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN;
+                                const bool key_up = kind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_UP || kind == COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_UP;
+                                if (!key_down && !key_up) return S_OK;
                                 UINT virtual_key = 0;
                                 if (FAILED(args->get_VirtualKey(&virtual_key))) return S_OK;
-                                if (emitShortcutForWindowId(host, accelerator_window_id, virtual_key)) {
+                                COREWEBVIEW2_PHYSICAL_KEY_STATUS status = {};
+                                const bool repeat = key_down && SUCCEEDED(args->get_PhysicalKeyStatus(&status)) && status.WasKeyDown;
+                                if (handleShortcutCaptureForWindowId(host, accelerator_window_id, virtual_key, key_down, repeat)) {
+                                    args->put_Handled(TRUE);
+                                } else if (key_down && emitShortcutForWindowId(host, accelerator_window_id, virtual_key)) {
                                     args->put_Handled(TRUE);
                                 }
                                 return S_OK;
@@ -5731,7 +5824,12 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
             break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
+            if (host && handleShortcutCaptureForHwnd(host, hwnd, wparam, true, (lparam & (1LL << 30)) != 0)) return 0;
             if (host && emitShortcutForHwnd(host, hwnd, wparam)) return 0;
+            break;
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+            if (host && handleShortcutCaptureForHwnd(host, hwnd, wparam, false, false)) return 0;
             break;
         case WM_COMMAND:
             if (host) {
@@ -5748,6 +5846,7 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         case WM_ACTIVATEAPP:
             if (host) {
                 bool active = wparam != FALSE;
+                if (!active) cancelShortcutCaptureState(host);
                 if (host->app_active != active) {
                     host->app_active = active;
                     for (auto &entry : host->windows) {
@@ -5814,6 +5913,7 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
         case WM_SETFOCUS:
         case WM_KILLFOCUS:
             if (host) {
+                if (message == WM_KILLFOCUS) cancelShortcutCaptureIfFocusLeavesOwner(host, reinterpret_cast<HWND>(wparam));
                 /* Native child views own Win32 focus directly. Project
                  * their focus edges onto the owning top-level window so
                  * runtime key-window state follows child-to-child and
@@ -5937,6 +6037,7 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
             if (host) emitAppearanceIfChanged(host, false);
             break;
         case WM_CLOSE:
+            cancelShortcutCaptureState(host);
             /* close_policy .hide: the user's close (caption X, Alt+F4)
              * hides the window instead of destroying it — the hwnd and
              * every view stay live, the app keeps running behind its
@@ -5972,6 +6073,7 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
             DestroyWindow(hwnd);
             return 0;
         case WM_DESTROY:
+            cancelShortcutCaptureState(host);
             if (host) {
                 for (auto &entry : host->windows) {
                     if (entry.second.hwnd == hwnd) {
@@ -6177,6 +6279,7 @@ Host *native_sdk_windows_create(const char *app_name, size_t app_name_len, const
 
 void native_sdk_windows_destroy(Host *host) {
     if (!host) return;
+    stopShortcutCaptureState(host);
     audioCaptureStopAll(host);
     std::shared_ptr<HostLifetime> lifetime = host->lifetime;
     std::lock_guard<std::recursive_mutex> guard(lifetime->mutex);
@@ -6558,6 +6661,22 @@ int native_sdk_windows_set_menus(Host *host, const char *const *menu_titles, con
         if (entry.second.hwnd) applyMenusToWindow(host, entry.second);
     }
     return 1;
+}
+
+void native_sdk_windows_start_shortcut_capture(Host *host) {
+    if (!host) return;
+    HWND focused = GetForegroundWindow();
+    const Window *window = windowForHwnd(host, focused);
+    if (!window || !window->hwnd) {
+        stopShortcutCaptureState(host);
+        return;
+    }
+    host->shortcut_capture_mode = true;
+    host->shortcut_capture_window_id = window->id;
+}
+
+void native_sdk_windows_stop_shortcut_capture(Host *host) {
+    stopShortcutCaptureState(host);
 }
 
 void native_sdk_windows_set_shortcuts(Host *host, const char *const *ids, const size_t *id_lens, const char *const *keys, const size_t *key_lens, const uint32_t *modifiers, size_t count) {
