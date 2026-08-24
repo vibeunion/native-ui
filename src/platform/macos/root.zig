@@ -8,6 +8,12 @@ const canvas = @import("canvas");
 // The packaging pipeline's one-image icon machinery: dev runs borrow its
 // macOS mask/inset render so the Dock tile matches `native package`.
 const app_icon = canvas.app_icon;
+const updater_c_api = @import("../../updater/c_api.zig");
+
+comptime {
+    _ = updater_c_api.native_sdk_update_verify_feed;
+    _ = updater_c_api.native_sdk_update_verify_archive;
+}
 
 pub const Error = error{
     CallbackFailed,
@@ -174,6 +180,8 @@ extern fn native_sdk_appkit_create(app_name: [*]const u8, app_name_len: usize, d
 extern fn native_sdk_appkit_destroy(host: *AppKitHost) void;
 extern fn native_sdk_appkit_set_dock_icon_rgba(host: *AppKitHost, pixels: [*]const u8, width: usize, height: usize) void;
 extern fn native_sdk_appkit_set_dock_icon_file(host: *AppKitHost, path: [*]const u8, path_len: usize) void;
+extern fn native_sdk_appkit_configure_updates(host: *AppKitHost, feed_url: [*]const u8, feed_url_len: usize, public_key: [*]const u8, public_key_len: usize, check_on_start: c_int, target: [*]const u8, target_len: usize) void;
+extern fn native_sdk_appkit_check_for_updates(host: *AppKitHost, user_initiated: c_int) c_int;
 extern fn native_sdk_appkit_run(host: *AppKitHost, callback: AppKitCallback, context: ?*anyopaque) void;
 extern fn native_sdk_appkit_stop(host: *AppKitHost) void;
 extern fn native_sdk_appkit_request_stop(host: *AppKitHost) void;
@@ -254,6 +262,7 @@ extern fn native_sdk_appkit_close_webview(host: *AppKitHost, window_id: u64, lab
 extern fn native_sdk_appkit_clipboard_read(host: *AppKitHost, buffer: [*]u8, buffer_len: usize) usize;
 extern fn native_sdk_appkit_measure_text(font_id: u64, size: f64, text: [*]const u8, text_len: usize) f64;
 extern fn native_sdk_appkit_measure_text_advances(font_id: u64, size: f64, text: [*]const u8, text_len: usize, advances: [*]f32) c_int;
+extern fn native_sdk_appkit_measure_text_ink(font_id: u64, size: f64, text: [*]const u8, text_len: usize, min_x: *f64, max_x: *f64, min_y: *f64, max_y: *f64) c_int;
 extern fn native_sdk_appkit_register_font(font_id: u64, bytes: [*]const u8, bytes_len: usize, out_token: *u64) c_int;
 extern fn native_sdk_appkit_unregister_font(font_id: u64, token: u64) c_int;
 extern fn native_sdk_appkit_register_bundled_fonts() void;
@@ -678,6 +687,12 @@ pub const MacPlatform = struct {
         const dock_icon = planDockIcon(app_info.icon_path);
         const icon_path = if (dock_icon == .host_file) app_info.icon_path else "";
         const host = native_sdk_appkit_create(app_info.app_name.ptr, app_info.app_name.len, display_name.ptr, display_name.len, app_info.version.ptr, app_info.version.len, app_info.description.ptr, app_info.description.len, if (app_info.has_web_content) 1 else 0, if (app_info.dock_visible) 1 else 0, window_title.ptr, window_title.len, app_info.bundle_id.ptr, app_info.bundle_id.len, icon_path.ptr, icon_path.len, window_options.label.ptr, window_options.label.len, frame.x, frame.y, frame.width, frame.height, if (window_options.restore_state) 1 else 0, initialPlacementInt(window_options.initial_placement), restorePolicyInt(window_options.restore_policy), if (window_options.resizable) 1 else 0, titlebarStyleInt(window_options.titlebar), showModeInt(window_options.show), windowFlags(window_options)) orelse return error.CreateFailed;
+        const update_target = comptime switch (builtin.cpu.arch) {
+            .aarch64 => "macos-aarch64",
+            .x86_64 => "macos-x86_64",
+            else => "macos-unsupported",
+        };
+        native_sdk_appkit_configure_updates(host, app_info.update_feed_url.ptr, app_info.update_feed_url.len, app_info.update_public_key.ptr, app_info.update_public_key.len, if (app_info.update_check_on_start) 1 else 0, update_target.ptr, update_target.len);
         switch (dock_icon) {
             .host_file => {},
             .masked_render => spawnDevDockIconRender(host, app_info.icon_path),
@@ -802,6 +817,7 @@ pub const MacPlatform = struct {
                 .reveal_path_fn = revealPath,
                 .add_recent_document_fn = addRecentDocument,
                 .clear_recent_documents_fn = clearRecentDocuments,
+                .check_for_updates_fn = checkForUpdates,
                 .create_tray_fn = createTray,
                 .update_tray_shell_fn = updateTrayShell,
                 .update_tray_menu_fn = updateTrayMenu,
@@ -851,6 +867,7 @@ pub const MacPlatform = struct {
                 .update_widget_accessibility_fn = updateWidgetAccessibility,
                 .measure_text_fn = measureText,
                 .measure_text_advances_fn = measureTextAdvances,
+                .measure_text_ink_fn = measureTextInk,
                 .decode_image_fn = decodeImage,
             },
             .app_info = self.app_info,
@@ -1207,6 +1224,7 @@ pub fn installHeadlessTextServices(services: *platform_mod.PlatformServices) voi
     native_sdk_appkit_register_bundled_fonts();
     services.measure_text_fn = measureText;
     services.measure_text_advances_fn = measureTextAdvances;
+    services.measure_text_ink_fn = measureTextInk;
     services.register_gpu_surface_font_fn = registerGpuSurfaceFont;
     services.unregister_gpu_surface_font_fn = unregisterGpuSurfaceFont;
 }
@@ -1234,6 +1252,23 @@ fn measureTextAdvances(context: ?*anyopaque, font_id: u64, size: f32, text: []co
     if (text.len == 0) return true;
     if (advances.len < text.len) return false;
     return native_sdk_appkit_measure_text_advances(font_id, size, text.ptr, text.len, advances.ptr) == 1;
+}
+
+fn measureTextInk(context: ?*anyopaque, font_id: u64, size: f32, text: []const u8, metrics: *canvas.TextInkMetrics) bool {
+    _ = context;
+    if (text.len == 0) return false;
+    var min_x: f64 = 0;
+    var max_x: f64 = 0;
+    var min_y: f64 = 0;
+    var max_y: f64 = 0;
+    if (native_sdk_appkit_measure_text_ink(font_id, size, text.ptr, text.len, &min_x, &max_x, &min_y, &max_y) != 1) return false;
+    metrics.* = .{
+        .min_x = @floatCast(min_x),
+        .max_x = @floatCast(max_x),
+        .min_y = @floatCast(min_y),
+        .max_y = @floatCast(max_y),
+    };
+    return true;
 }
 
 /// System image decoding (ImageIO raster codecs plus NSImage's SVG
@@ -2354,6 +2389,11 @@ fn clearRecentDocuments(context: ?*anyopaque) anyerror!void {
     if (native_sdk_appkit_clear_recent_documents(self.host) == 0) return error.UnsupportedService;
 }
 
+fn checkForUpdates(context: ?*anyopaque, user_initiated: bool) anyerror!void {
+    const self: *MacPlatform = @ptrCast(@alignCast(context.?));
+    if (native_sdk_appkit_check_for_updates(self.host, if (user_initiated) 1 else 0) == 0) return error.UnsupportedService;
+}
+
 fn configureSecurityPolicy(context: ?*anyopaque, policy: security.Policy) anyerror!void {
     const self: *MacPlatform = @ptrCast(@alignCast(context.?));
     var origins_buffer: [4096]u8 = undefined;
@@ -2909,6 +2949,14 @@ test "mac platform module exports type" {
     _ = MacPlatform;
 }
 
+test "mac AppKit packet text anchors use the resolved font ascent" {
+    const host_source = @embedFile("appkit_host.m");
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "static BOOL NativeSdkPacketDrawAttributedText(") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "drawGlyphsForGlyphRange:glyphRange atPoint:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "glyphRangeForTextContainer:container") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "native_sdk_appkit_measure_text_ink(") != null);
+}
+
 test "mac status agent rows recognize decorated states and stay actionable" {
     const host_source = @embedFile("appkit_host.m");
     try std.testing.expect(std.mem.indexOf(u8, host_source, "[state hasPrefix:@\"configured \"]") != null);
@@ -3063,6 +3111,53 @@ test "both mac hosts apply launch dock presence before configuring the app" {
         try std.testing.expect(std.mem.indexOf(u8, host_source, "int has_web_content, int dock_visible") != null);
         try std.testing.expect(std.mem.indexOf(u8, host_source, "dockVisible:(dock_visible != 0)") != null);
     }
+}
+
+test "mac updater hashes archives off the main thread and treats user cancellation silently" {
+    const host_source = @embedFile("appkit_host.m");
+    const install_at = std.mem.indexOf(u8, host_source, "- (void)installDownloadedUpdate:(NSURL *)downloadURL version:(NSString *)version archiveBytes:(uint64_t)archiveBytes sha256:(NSString *)sha256 {") orelse return error.TestExpectedEqual;
+    const install_tail = host_source[install_at..];
+    const install_end = std.mem.indexOf(u8, install_tail, "- (NSMenuItem *)menuItem:") orelse return error.TestExpectedEqual;
+    const install_body = install_tail[0..install_end];
+    const background_at = std.mem.indexOf(u8, install_body, "dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)") orelse return error.TestExpectedEqual;
+    const verify_at = std.mem.indexOf(u8, install_body, "native_sdk_update_verify_archive(") orelse return error.TestExpectedEqual;
+    try std.testing.expect(background_at < verify_at);
+
+    const download_at = std.mem.indexOf(u8, host_source, "- (void)downloadUpdateVersion:(NSString *)version archiveURL:(NSString *)archiveURL archiveBytes:(uint64_t)archiveBytes sha256:(NSString *)sha256 releaseNotes:(NSString *)releaseNotes {") orelse return error.TestExpectedEqual;
+    const download_tail = host_source[download_at..];
+    const download_end = std.mem.indexOf(u8, download_tail, "- (void)updateDownloadLimitTimerFired:") orelse return error.TestExpectedEqual;
+    const download_body = download_tail[0..download_end];
+    try std.testing.expect(std.mem.indexOf(u8, download_body, "strongSelf.updateDownloadCancelledByUser = YES;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, download_body, "if (cancelledByUser)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, download_body, "strongSelf.updateCheckRunning = NO;") != null);
+}
+
+test "mac updater binds packaged releases to the installed bundle identity" {
+    const host_source = @embedFile("appkit_host.m");
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "static NSString *NativeSdkPackagedBundleIdentifier(void)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "self.bundleIdentifier = NativeSdkPackagedBundleIdentifier() ?: configuredBundleIdentifier;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "strongSelf.bundleIdentifier.UTF8String") != null);
+    try std.testing.expect(std.mem.indexOf(u8, host_source, "[candidateBundle.bundleIdentifier isEqualToString:strongSelf.bundleIdentifier]") != null);
+}
+
+test "mac updater presents without relying on the startup window and cleans failed staging" {
+    const host_source = @embedFile("appkit_host.m");
+    const helper_at = std.mem.lastIndexOf(u8, host_source, "- (void)presentUpdateAlert:(NSAlert *)alert completionHandler:") orelse return error.TestExpectedEqual;
+    const helper_tail = host_source[helper_at..];
+    const helper_end = std.mem.indexOf(u8, helper_tail, "- (void)showUpdateError:") orelse return error.TestExpectedEqual;
+    const helper_body = helper_tail[0..helper_end];
+    try std.testing.expect(std.mem.indexOf(u8, helper_body, "[self updatePresentationWindow]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, helper_body, "[alert runModal]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, helper_body, "self.window") == null);
+
+    const install_at = std.mem.indexOf(u8, host_source, "- (void)installDownloadedUpdate:(NSURL *)downloadURL version:") orelse return error.TestExpectedEqual;
+    const install_tail = host_source[install_at..];
+    const create_failure = std.mem.indexOf(u8, install_tail, "if (![manager createDirectoryAtPath:extractPath") orelse return error.TestExpectedEqual;
+    const failure_tail = install_tail[create_failure..];
+    const failure_end = std.mem.indexOf(u8, failure_tail, "NSString *taskOutput") orelse return error.TestExpectedEqual;
+    const failure_body = failure_tail[0..failure_end];
+    try std.testing.expect(std.mem.indexOf(u8, failure_body, "removeItemAtPath:stagePath") != null);
+    try std.testing.expect(std.mem.indexOf(u8, failure_body, "removeItemAtURL:downloadURL") != null);
 }
 
 test "mac transparent raw frames are premultiplied exactly once before Metal upload" {

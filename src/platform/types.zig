@@ -256,6 +256,9 @@ pub const max_credential_account_bytes: usize = 256;
 /// Every host accepts this whole range; none silently truncates it.
 pub const max_credential_secret_bytes: usize = 5 * 512;
 pub const max_local_time_text_bytes: usize = 512;
+pub const max_update_feed_url_bytes: usize = 4096;
+pub const max_update_public_key_bytes: usize = 128;
+pub const update_check_command = "app.check-for-updates";
 /// A desktop app may own a small bounded set of independent status items.
 /// macOS implements the whole set; hosts whose tray API is singular accept
 /// only `primary_status_item_id` and reject additional identifiers.
@@ -1309,6 +1312,9 @@ pub const AppInfo = struct {
     window_title: []const u8 = "",
     bundle_id: []const u8 = "dev.native_sdk.app",
     icon_path: []const u8 = "",
+    update_feed_url: []const u8 = "",
+    update_public_key: []const u8 = "",
+    update_check_on_start: bool = false,
     main_window: WindowOptions = .{},
     windows: []const WindowOptions = &.{},
 
@@ -2779,6 +2785,7 @@ pub const PlatformServices = struct {
     reveal_path_fn: ?*const fn (context: ?*anyopaque, path: []const u8) anyerror!void = null,
     add_recent_document_fn: ?*const fn (context: ?*anyopaque, path: []const u8) anyerror!void = null,
     clear_recent_documents_fn: ?*const fn (context: ?*anyopaque) anyerror!void = null,
+    check_for_updates_fn: ?*const fn (context: ?*anyopaque, user_initiated: bool) anyerror!void = null,
     create_tray_fn: ?*const fn (context: ?*anyopaque, status_item_id: StatusItemId, options: TrayOptions) anyerror!void = null,
     update_tray_shell_fn: ?*const fn (context: ?*anyopaque, status_item_id: StatusItemId, shell: TrayShell) anyerror!void = null,
     update_tray_menu_fn: ?*const fn (context: ?*anyopaque, status_item_id: StatusItemId, items: []const TrayMenuItem) anyerror!void = null,
@@ -3050,6 +3057,9 @@ pub const PlatformServices = struct {
     /// engine-side registered-face provider — both batch engine-side
     /// without any platform seam.
     measure_text_advances_fn: ?*const fn (context: ?*anyopaque, font_id: u64, size: f32, text: []const u8, advances: []f32) bool = null,
+    /// Shaped glyph-path bounds for one single-line run, relative to its
+    /// baseline. Null on platforms without host-side text metrics.
+    measure_text_ink_fn: ?*const fn (context: ?*anyopaque, font_id: u64, size: f32, text: []const u8, metrics: *canvas.TextInkMetrics) bool = null,
     /// Decode encoded image bytes (PNG, JPEG, ... — whatever the platform
     /// codec supports) into tightly packed, row-major, straight-alpha
     /// (non-premultiplied) RGBA8 written into `buffer`, returning the
@@ -3352,6 +3362,11 @@ pub const PlatformServices = struct {
     pub fn clearRecentDocuments(self: PlatformServices) anyerror!void {
         const clear_fn = self.clear_recent_documents_fn orelse return error.UnsupportedService;
         return clear_fn(self.context);
+    }
+
+    pub fn checkForUpdates(self: PlatformServices, user_initiated: bool) anyerror!void {
+        const check_fn = self.check_for_updates_fn orelse return error.UnsupportedService;
+        return check_fn(self.context, user_initiated);
     }
 
     pub fn createStatusItem(self: PlatformServices, status_item_id: StatusItemId, options: TrayOptions) anyerror!void {
