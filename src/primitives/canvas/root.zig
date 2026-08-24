@@ -595,6 +595,7 @@ pub fn emitModelContractMain(comptime app: type, init: std.process.Init) !void {
 pub const ui_builder = @import("ui.zig");
 pub const Ui = ui_builder.Ui;
 pub const ui_library = @import("ui_library.zig");
+pub const ui_foundation = @import("ui_foundation.zig");
 pub const UiKey = ui_builder.UiKey;
 pub const UiHandlerEvent = ui_builder.UiHandlerEvent;
 pub const uiKey = ui_builder.uiKey;

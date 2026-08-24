@@ -1,0 +1,39 @@
+<!-- Public VibeUnion UI foundation composites.
+
+     Ejected from the Native SDK component library.
+
+     These templates are intentionally headless: they provide only stable
+     layout, semantic roles, and token-backed surface chrome. The caller owns
+     labels, children, selection, navigation, pending state, and messages.
+     `native eject component ui-foundation` transfers this source into an app
+     so the app can bind its own Model/Msg without importing product state.
+-->
+<template name="ui-foundation-toolbar" args="height=46 label= globalkey= windowdrag=false">
+  <row height="{height}" gap="8" padding="8" main="space_between" cross="center" background="background" window-drag="{windowdrag}" global-key="{globalkey}" label="{label}">
+    <slot/>
+  </row>
+</template>
+
+<template name="ui-foundation-sidebar" args="minwidth=240 label= globalkey=">
+  <column min-width="{minwidth}" grow="1" gap="0" padding="8" background="background" global-key="{globalkey}" label="{label}">
+    <slot/>
+  </column>
+</template>
+
+<template name="ui-foundation-composer" args="label=">
+  <row grow="1" padding="12" main="center" background="background" label="{label}">
+    <slot/>
+  </row>
+</template>
+
+<template name="ui-foundation-panel" args="padding=8 label=">
+  <panel padding="{padding}" label="{label}">
+    <slot/>
+  </panel>
+</template>
+
+<template name="ui-foundation-timeline" args="gap=0 grow=0 label=">
+  <column role="list" gap="{gap}" grow="{grow}" label="{label}">
+    <slot/>
+  </column>
+</template>

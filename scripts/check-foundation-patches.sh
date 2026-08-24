@@ -55,6 +55,41 @@ for index in "${!PATCHES[@]}"; do
   fi
 done
 
+UI_INVENTORY="$ROOT/$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.inventory_path || "")' "$MANIFEST")"
+UI_TEMPLATE_SOURCE="$ROOT/$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.template_source_path || "")' "$MANIFEST")"
+UI_PUBLIC_API="$ROOT/$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.public_api_path || "")' "$MANIFEST")"
+UI_PATCH="$ROOT/patches/$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.patches.find((p) => p.scope === "ui-foundation")?.path || "")' "$MANIFEST")"
+UI_INVENTORY_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.inventory_sha256 || "")' "$MANIFEST")"
+UI_TEMPLATE_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.template_source_sha256 || "")' "$MANIFEST")"
+UI_PUBLIC_API_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.public_api_sha256 || "")' "$MANIFEST")"
+UI_TEMPLATE_COUNT="$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(m.ui_foundation?.template_count || 0))' "$MANIFEST")"
+[[ -f "$UI_INVENTORY" && -f "$UI_TEMPLATE_SOURCE" && -f "$UI_PUBLIC_API" && -f "$UI_PATCH" ]] || {
+  echo "ui-foundation manifest paths are incomplete" >&2
+  exit 1
+}
+[[ "$(hash_file "$UI_INVENTORY")" == "$UI_INVENTORY_SHA_EXPECTED" ]] || { echo "ui-foundation inventory hash mismatch" >&2; exit 1; }
+[[ "$(hash_file "$UI_TEMPLATE_SOURCE")" == "$UI_TEMPLATE_SHA_EXPECTED" ]] || { echo "ui-foundation template source hash mismatch" >&2; exit 1; }
+[[ "$(hash_file "$UI_PUBLIC_API")" == "$UI_PUBLIC_API_SHA_EXPECTED" ]] || { echo "ui-foundation public API hash mismatch" >&2; exit 1; }
+[[ "$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(m.ui_foundation?.state_owner || ""))' "$MANIFEST")" == "caller" ]] || {
+  echo "ui-foundation state ownership must remain caller-owned" >&2
+  exit 1
+}
+actual_ui_template_count="$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(m.templates?.length || 0))' "$UI_INVENTORY")"
+[[ "$actual_ui_template_count" == "$UI_TEMPLATE_COUNT" ]] || { echo "ui-foundation template inventory count mismatch" >&2; exit 1; }
+node - "$UI_INVENTORY" "$UI_TEMPLATE_SOURCE" "$UI_PUBLIC_API" <<'NODE'
+const fs = require("node:fs");
+const [inventoryPath, templatePath, apiPath] = process.argv.slice(2);
+const inventory = JSON.parse(fs.readFileSync(inventoryPath, "utf8"));
+const templateSource = fs.readFileSync(templatePath, "utf8");
+const apiSource = fs.readFileSync(apiPath, "utf8");
+const names = inventory.templates.map((item) => item.name);
+if (new Set(names).size !== names.length) process.exit(1);
+for (const name of names) {
+  if (!templateSource.includes(`<template name="${name}"`)) process.exit(1);
+  if (!apiSource.includes(`.name = "${name}"`)) process.exit(1);
+}
+NODE
+
 patch_additions() {
   awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "${PATCHES[@]/#/$ROOT/}"
 }
@@ -74,6 +109,14 @@ if patch_additions | rg -n -i 'screen_capture|global_hotkey|configure_shortcuts'
 fi
 if patch_additions | rg -n 'wire_version'; then
   echo "public patches must not change the wire version" >&2
+  exit 1
+fi
+if [[ "$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(m.patches.filter((p) => p.scope === "ui-foundation").length))' "$MANIFEST")" != 1 ]]; then
+  echo "manifest must declare exactly one ui-foundation patch" >&2
+  exit 1
+fi
+if awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "$UI_PATCH" | rg -n -i 'VOLT_|CODEX_|agentd|/Users/|/Volumes/|provider|approval|workspace|password|secret|screen_capture|global_hotkey'; then
+  echo "ui-foundation patch contains product or private authority" >&2
   exit 1
 fi
 
@@ -126,6 +169,7 @@ if [[ "$MODE" == "--verify" || "$MODE" == "--full" ]]; then
       stage-core-contracts \
       test-desktop-runtime-core \
       test-desktop-ui-shell \
+      test-eject-components \
       test-example-gpu-components \
       test-example-ts-host-foundation \
       --summary all

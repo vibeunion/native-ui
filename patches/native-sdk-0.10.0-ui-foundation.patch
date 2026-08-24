@@ -1,0 +1,223 @@
+diff --git a/src/primitives/canvas/root.zig b/src/primitives/canvas/root.zig
+index d5b129412febb89df5fd4c11d442965b1f624472..76f566bbaa1d2e4685677edf714ff836e0684d57 100644
+--- a/src/primitives/canvas/root.zig
++++ b/src/primitives/canvas/root.zig
+@@ -594,6 +594,7 @@ pub fn emitModelContractMain(comptime app: type, init: std.process.Init) !void {
+ pub const ui_builder = @import("ui.zig");
+ pub const Ui = ui_builder.Ui;
+ pub const ui_library = @import("ui_library.zig");
++pub const ui_foundation = @import("ui_foundation.zig");
+ pub const UiKey = ui_builder.UiKey;
+ pub const UiHandlerEvent = ui_builder.UiHandlerEvent;
+ pub const uiKey = ui_builder.uiKey;
+diff --git a/src/primitives/canvas/tests.zig b/src/primitives/canvas/tests.zig
+index c0c58e818622d469efa1139a1adf4539a91a1311..342f88077e41c2c1a4cafc4fdea27478fa6d8970 100644
+--- a/src/primitives/canvas/tests.zig
++++ b/src/primitives/canvas/tests.zig
+@@ -2,6 +2,7 @@ test {
+     _ = @import("widget_tests.zig");
+     _ = @import("ui_tests.zig");
+     _ = @import("ui_library_tests.zig");
++    _ = @import("ui_foundation_tests.zig");
+     _ = @import("ui_schema_tests.zig");
+     _ = @import("ui_markup_tests.zig");
+     _ = @import("ui_markup_binary_tests.zig");
+diff --git a/src/primitives/canvas/ui_foundation.zig b/src/primitives/canvas/ui_foundation.zig
+new file mode 100644
+index 0000000000000000000000000000000000000000..f26cc9f924ed0d8a839c5abe1347920e8d5fcafe
+--- /dev/null
++++ b/src/primitives/canvas/ui_foundation.zig
+@@ -0,0 +1,43 @@
++//! Public, stateless workbench UI foundation.
++//!
++//! These declarations are vocabulary and geometry defaults only. Product
++//! state, labels, selection, navigation, pending/result state, and messages
++//! stay in the caller-owned Model/Msg/update loop.
++
++const std = @import("std");
++
++pub const schema_version: u32 = 1;
++pub const template_source_path = "src/tooling/components/ui_foundation.native";
++pub const template_source = @embedFile("../../tooling/components/ui_foundation.native");
++
++pub const WorkbenchMetrics = struct {
++    pub const toolbar_height: f32 = 46;
++    pub const action_size: f32 = 28;
++    pub const sidebar_min_width: f32 = 240;
++    pub const sidebar_preferred_width: f32 = 275;
++    pub const sidebar_max_width: f32 = 520;
++    pub const navigation_row_height: f32 = 31;
++    pub const composer_min_height: f32 = 96;
++    pub const composer_content_max_width: f32 = 790;
++    pub const content_max_width: f32 = 768;
++};
++
++pub const Template = struct {
++    name: []const u8,
++    role: []const u8,
++};
++
++pub const templates = [_]Template{
++    .{ .name = "ui-foundation-toolbar", .role = "toolbar-frame" },
++    .{ .name = "ui-foundation-sidebar", .role = "sidebar-frame" },
++    .{ .name = "ui-foundation-composer", .role = "composer-frame" },
++    .{ .name = "ui-foundation-panel", .role = "panel-frame" },
++    .{ .name = "ui-foundation-timeline", .role = "timeline-frame" },
++};
++
++pub fn find(name: []const u8) ?*const Template {
++    for (&templates) |*template| {
++        if (std.mem.eql(u8, template.name, name)) return template;
++    }
++    return null;
++}
+diff --git a/src/primitives/canvas/ui_foundation_tests.zig b/src/primitives/canvas/ui_foundation_tests.zig
+new file mode 100644
+index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e67889b050e5
+--- /dev/null
++++ b/src/primitives/canvas/ui_foundation_tests.zig
+@@ -0,0 +1,26 @@
++const std = @import("std");
++const foundation = @import("ui_foundation.zig");
++
++test "public UI foundation inventory is complete and unique" {
++    try std.testing.expectEqual(@as(u32, 1), foundation.schema_version);
++    try std.testing.expectEqual(@as(usize, 5), foundation.templates.len);
++    for (foundation.templates, 0..) |template, index| {
++        try std.testing.expect(template.name.len > 0);
++        try std.testing.expect(template.role.len > 0);
++        try std.testing.expect(foundation.find(template.name) != null);
++        for (foundation.templates[index + 1 ..]) |other| {
++            try std.testing.expect(!std.mem.eql(u8, template.name, other.name));
++        }
++    }
++    try std.testing.expect(foundation.find("private-sidebar") == null);
++}
++
++test "public workbench metrics stay platform-neutral and bounded" {
++    const metrics = foundation.WorkbenchMetrics;
++    try std.testing.expect(metrics.toolbar_height >= metrics.action_size);
++    try std.testing.expect(metrics.sidebar_min_width <= metrics.sidebar_preferred_width);
++    try std.testing.expect(metrics.sidebar_preferred_width <= metrics.sidebar_max_width);
++    try std.testing.expect(metrics.navigation_row_height >= 28);
++    try std.testing.expect(metrics.composer_min_height >= 64);
++    try std.testing.expect(metrics.content_max_width <= metrics.composer_content_max_width);
++}
+diff --git a/src/tooling/components/identity_tests.zig b/src/tooling/components/identity_tests.zig
+index 40ec36362fcc6bb46cab1e75d43f20181de537aa..18bbfa2276ae07711d6c55f9b59674c95260c837 100644
+--- a/src/tooling/components/identity_tests.zig
++++ b/src/tooling/components/identity_tests.zig
+@@ -22,6 +22,7 @@ const canvas = native_sdk.canvas;
+ const stepper_component = @import("stepper.zig");
+ const timeline_item_component = @import("timeline_item.zig");
+ const timeline_template = @embedFile("timeline.native");
++const ui_foundation_template = @embedFile("ui_foundation.native");
+
+ /// A stand-in app model/message pair: the composites under test bind no
+ /// model state themselves (their inputs arrive as options/args), so an
+@@ -183,3 +184,31 @@ test "the ejected timeline template's defaults match the library element's defau
+
+     try testing.expectEqualDeep(element_tree.root, template_tree.root);
+ }
++
++test "the public UI foundation templates are headless and resolve through the real import path" {
++    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
++    defer arena_state.deinit();
++    const arena = arena_state.allocator();
++
++    const source =
++        "<import src=\"components/ui_foundation.native\"/>\n" ++
++        "<column>\n" ++
++        "  <use template=\"ui-foundation-toolbar\" label=\"Toolbar\" globalkey=\"toolbar\" windowdrag=\"true\"><text>Title</text></use>\n" ++
++        "  <use template=\"ui-foundation-sidebar\" label=\"Sidebar\" globalkey=\"sidebar\"><text>Nav</text></use>\n" ++
++        "  <use template=\"ui-foundation-composer\" label=\"Composer\"><textarea label=\"Composer\" /></use>\n" ++
++        "  <use template=\"ui-foundation-panel\" label=\"Panel\"><text>Body</text></use>\n" ++
++        "  <use template=\"ui-foundation-timeline\" label=\"Activity\"><text>Item</text></use>\n" ++
++        "</column>\n";
++    const files = [_]canvas.ui_markup.SourceFile{
++        .{ .path = "components/ui_foundation.native", .source = ui_foundation_template },
++    };
++    var ui = Ui.init(arena);
++    const tree = try buildMarkupTree(arena, &ui, source, &files);
++    try testing.expectEqual(canvas.WidgetKind.column, tree.root.kind);
++    try testing.expectEqual(@as(usize, 5), tree.root.children.len);
++    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[0].kind);
++    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[1].kind);
++    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[2].kind);
++    try testing.expectEqual(canvas.WidgetKind.panel, tree.root.children[3].kind);
++    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
++}
+diff --git a/src/tooling/components/ui_foundation.native b/src/tooling/components/ui_foundation.native
+new file mode 100644
+index 0000000000000000000000000000000000000000..99aa0976cd4d161f828183148c7c9756a47a5e33
+--- /dev/null
++++ b/src/tooling/components/ui_foundation.native
+@@ -0,0 +1,39 @@
++<!-- Public VibeUnion UI foundation composites.
++
++     Ejected from the Native SDK component library.
++
++     These templates are intentionally headless: they provide only stable
++     layout, semantic roles, and token-backed surface chrome. The caller owns
++     labels, children, selection, navigation, pending state, and messages.
++     `native eject component ui-foundation` transfers this source into an app
++     so the app can bind its own Model/Msg without importing product state.
++-->
++<template name="ui-foundation-toolbar" args="height=46 label= globalkey= windowdrag=false">
++  <row height="{height}" gap="8" padding="8" main="space_between" cross="center" background="background" window-drag="{windowdrag}" global-key="{globalkey}" label="{label}">
++    <slot/>
++  </row>
++</template>
++
++<template name="ui-foundation-sidebar" args="minwidth=240 label= globalkey=">
++  <column min-width="{minwidth}" grow="1" gap="0" padding="8" background="background" global-key="{globalkey}" label="{label}">
++    <slot/>
++  </column>
++</template>
++
++<template name="ui-foundation-composer" args="label=">
++  <row grow="1" padding="12" main="center" background="background" label="{label}">
++    <slot/>
++  </row>
++</template>
++
++<template name="ui-foundation-panel" args="padding=8 label=">
++  <panel padding="{padding}" label="{label}">
++    <slot/>
++  </panel>
++</template>
++
++<template name="ui-foundation-timeline" args="gap=0 grow=0 label=">
++  <column role="list" gap="{gap}" grow="{grow}" label="{label}">
++    <slot/>
++  </column>
++</template>
+diff --git a/src/tooling/eject_components.zig b/src/tooling/eject_components.zig
+index 3e10091f8d727d3d69f58f8046814df2494c646c..d0a64ba01b1aa825f8ac84a9b71f06e8a4d642dc 100644
+--- a/src/tooling/eject_components.zig
++++ b/src/tooling/eject_components.zig
+@@ -61,6 +61,12 @@ pub const components = [_]Component{
+         .source = @embedFile("components/timeline_item.zig"),
+         .form = "Zig view function",
+     },
++    .{
++        .name = "ui-foundation",
++        .path = "src/components/ui_foundation.native",
++        .source = @embedFile("components/ui_foundation.native"),
++        .form = "markup templates",
++    },
+ };
+
+ pub fn find(name: []const u8) ?*const Component {
+@@ -162,9 +168,10 @@ test "unknown names suggest their nearest ejectable component" {
+     // Distance past the typo band suggests nothing instead of nonsense.
+     try std.testing.expect(suggestion("carousel") == null);
+     try std.testing.expect(find("stepper") != null);
++    try std.testing.expect(find("ui-foundation") != null);
+     try std.testing.expect(find("button") == null);
+ }
+
+ test "the component list names every ejectable component" {
+-    try std.testing.expectEqualStrings("stepper, timeline, timeline-item", component_list);
++    try std.testing.expectEqualStrings("stepper, timeline, timeline-item, ui-foundation", component_list);
+ }

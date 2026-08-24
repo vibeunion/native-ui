@@ -22,7 +22,10 @@ The repository has two kinds of foundation content:
      teardown, automation input pacing, and synchronized shortcut-capture names
      in the public TypeScript and bridge contracts;
    - `native-sdk-0.10.0-compiler-tooling.patch` adds the Node stack budget,
-     supported `DataView` use, and symbol-aware external-core `Bytes` folding.
+     supported `DataView` use, and symbol-aware external-core `Bytes` folding;
+   - `native-sdk-0.10.0-ui-foundation.patch` adds the public
+     `ui-foundation` ejection target with headless toolbar, sidebar, composer,
+     panel, and timeline templates.
 
 The patches do not contain application reducers, backend bindings, product
 policy, private paths, provider logic, credentials, or a browser runtime.
@@ -76,6 +79,8 @@ The gate verifies that:
 - patches apply in manifest order and reverse back to the exact base;
 - patch additions contain no product/private material or excluded features;
 - the patch set does not change the runtime wire version.
+- the UI inventory names exactly the templates embedded by the applied
+  `ui-foundation` patch and their recorded source hash matches.
 
 Use the stronger modes when preparing an integration or release:
 
@@ -110,11 +115,29 @@ git apply --check "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patc
 git apply "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
 git apply --check "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
 git apply "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
+git apply "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
 ```
 
 The order is part of the distribution contract. A base-tree mismatch or patch
 failure is a stop condition, not permission to use `--reject`, skip a hunk, or
 continue with a mixed SDK.
+
+## Consume The UI Templates
+
+After applying and building the pinned foundation, eject the public source into
+the application:
+
+```bash
+native eject component ui-foundation /absolute/path/to/app
+```
+
+Import `components/ui_foundation.native` from the application's root or another
+component file. Each template supplies only a frame and one unnamed slot. The
+application continues to own labels, data, selection, navigation, messages,
+pending/result state and authoritative success. See
+[`PUBLIC_UI_FOUNDATION_CONTRACT.md`](./PUBLIC_UI_FOUNDATION_CONTRACT.md) and the
+machine-readable [`public-ui-foundation-inventory.json`](./public-ui-foundation-inventory.json).
 
 ## Integrate A Thin Native Host
 
@@ -268,6 +291,7 @@ For an uncommitted consumer worktree, reverse in the opposite order:
 
 ```bash
 foundation=/absolute/path/to/native-ui
+git apply --reverse "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
 git apply --reverse "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
 git apply --reverse "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
 ```

@@ -25,6 +25,11 @@ The public foundation contains:
 - [`patches/native-sdk-0.10.0-compiler-tooling.patch`](./patches/native-sdk-0.10.0-compiler-tooling.patch),
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.
+- [`patches/native-sdk-0.10.0-ui-foundation.patch`](./patches/native-sdk-0.10.0-ui-foundation.patch),
+  which adds headless toolbar, sidebar, composer, panel, and timeline
+  templates. They are ejected into an app and bind to the caller's own
+  `Model`/`Msg`; they do not carry product routes, labels, pending state, or a
+  second reducer.
 
 Start with the [`Foundation Layer Guide`](./docs/FOUNDATION_USAGE.md) for
 prerequisites, immutable pinning, ordered patch application, `ts_host.zig`
@@ -44,6 +49,24 @@ Add `--verify` for focused compiler/runtime tests or `--full` for the complete
 Zig suite. Product-specific replay fixtures, environment policy, screen
 capture prototypes, undeclared platform features, vendored compiler output,
 and journal-format migrations are intentionally excluded.
+
+### Consuming The Public UI Foundation
+
+Read the [`Public UI Foundation Contract`](./docs/PUBLIC_UI_FOUNDATION_CONTRACT.md)
+and pin the reviewed distribution commit before consuming the templates:
+
+```bash
+native eject component ui-foundation /absolute/path/to/your-app
+```
+
+The generated `src/components/ui_foundation.native` is application-owned. Use
+`<use template="ui-foundation-toolbar">`,
+`<use template="ui-foundation-sidebar">`,
+`<use template="ui-foundation-composer">`,
+`<use template="ui-foundation-panel">`, and
+`<use template="ui-foundation-timeline">` as stateless frames around caller
+content. The machine-readable inventory is
+[`docs/public-ui-foundation-inventory.json`](./docs/public-ui-foundation-inventory.json).
 
 ## GPUI-Ecosystem UI Component Library
 

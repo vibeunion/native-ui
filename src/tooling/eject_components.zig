@@ -61,6 +61,12 @@ pub const components = [_]Component{
         .source = @embedFile("components/timeline_item.zig"),
         .form = "Zig view function",
     },
+    .{
+        .name = "ui-foundation",
+        .path = "src/components/ui_foundation.native",
+        .source = @embedFile("components/ui_foundation.native"),
+        .form = "markup templates",
+    },
 };
 
 pub fn find(name: []const u8) ?*const Component {
@@ -162,9 +168,10 @@ test "unknown names suggest their nearest ejectable component" {
     // Distance past the typo band suggests nothing instead of nonsense.
     try std.testing.expect(suggestion("carousel") == null);
     try std.testing.expect(find("stepper") != null);
+    try std.testing.expect(find("ui-foundation") != null);
     try std.testing.expect(find("button") == null);
 }
 
 test "the component list names every ejectable component" {
-    try std.testing.expectEqualStrings("stepper, timeline, timeline-item", component_list);
+    try std.testing.expectEqualStrings("stepper, timeline, timeline-item, ui-foundation", component_list);
 }

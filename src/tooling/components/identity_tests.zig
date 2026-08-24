@@ -22,6 +22,7 @@ const canvas = native_sdk.canvas;
 const stepper_component = @import("stepper.zig");
 const timeline_item_component = @import("timeline_item.zig");
 const timeline_template = @embedFile("timeline.native");
+const ui_foundation_template = @embedFile("ui_foundation.native");
 
 /// A stand-in app model/message pair: the composites under test bind no
 /// model state themselves (their inputs arrive as options/args), so an
@@ -182,4 +183,32 @@ test "the ejected timeline template's defaults match the library element's defau
     const template_tree = try buildMarkupTree(arena, &template_ui, template_source, &files);
 
     try testing.expectEqualDeep(element_tree.root, template_tree.root);
+}
+
+test "the public UI foundation templates are headless and resolve through the real import path" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const source =
+        "<import src=\"components/ui_foundation.native\"/>\n" ++
+        "<column>\n" ++
+        "  <use template=\"ui-foundation-toolbar\" label=\"Toolbar\" globalkey=\"toolbar\" windowdrag=\"true\"><text>Title</text></use>\n" ++
+        "  <use template=\"ui-foundation-sidebar\" label=\"Sidebar\" globalkey=\"sidebar\"><text>Nav</text></use>\n" ++
+        "  <use template=\"ui-foundation-composer\" label=\"Composer\"><textarea label=\"Composer\" /></use>\n" ++
+        "  <use template=\"ui-foundation-panel\" label=\"Panel\"><text>Body</text></use>\n" ++
+        "  <use template=\"ui-foundation-timeline\" label=\"Activity\"><text>Item</text></use>\n" ++
+        "</column>\n";
+    const files = [_]canvas.ui_markup.SourceFile{
+        .{ .path = "components/ui_foundation.native", .source = ui_foundation_template },
+    };
+    var ui = Ui.init(arena);
+    const tree = try buildMarkupTree(arena, &ui, source, &files);
+    try testing.expectEqual(canvas.WidgetKind.column, tree.root.kind);
+    try testing.expectEqual(@as(usize, 5), tree.root.children.len);
+    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[0].kind);
+    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[1].kind);
+    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[2].kind);
+    try testing.expectEqual(canvas.WidgetKind.panel, tree.root.children[3].kind);
+    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
 }

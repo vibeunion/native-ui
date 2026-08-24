@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "vibeunion-public-ui-foundation",
+  "templates": [
+    { "name": "ui-foundation-toolbar", "role": "toolbar-frame", "state": "caller-owned" },
+    { "name": "ui-foundation-sidebar", "role": "sidebar-frame", "state": "caller-owned" },
+    { "name": "ui-foundation-composer", "role": "composer-frame", "state": "caller-owned" },
+    { "name": "ui-foundation-panel", "role": "panel-frame", "state": "caller-owned" },
+    { "name": "ui-foundation-timeline", "role": "timeline-frame", "state": "caller-owned" }
+  ],
+  "excluded": [
+    "product routes",
+    "product labels and locale keys",
+    "Model/Msg/update/selectors",
+    "pending and ACK semantics",
+    "credentials and provider policy",
+    "CodeSurface and TerminalSurface"
+  ]
+}

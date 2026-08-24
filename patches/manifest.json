@@ -34,8 +34,25 @@
       "path": "native-sdk-0.10.0-compiler-tooling.patch",
       "sha256": "1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7",
       "scope": "compiler-tooling"
+    },
+    {
+      "order": 3,
+      "path": "native-sdk-0.10.0-ui-foundation.patch",
+      "sha256": "2ea9e6c7afcd19f138a16dfaa947600606ea487977800db4bebc1fa6837073b7",
+      "scope": "ui-foundation"
     }
   ],
+  "ui_foundation": {
+    "schema_version": 1,
+    "inventory_path": "docs/public-ui-foundation-inventory.json",
+    "inventory_sha256": "14aab81c36b1b75239fbeda6c35fa299a95aee2ec469bae9dbdfc22975ed732a",
+    "template_source_path": "src/tooling/components/ui_foundation.native",
+    "template_source_sha256": "c7f7d8f9b000fc1224c5320b5c68f85879b965744ca0d1161e7930792108acb8",
+    "public_api_path": "src/primitives/canvas/ui_foundation.zig",
+    "public_api_sha256": "037a6c3824f053d1d1503e7671860db93868c141146bdf4119724db137844988",
+    "template_count": 5,
+    "state_owner": "caller"
+  },
   "wire_version": 8,
   "journal_layout_changed": false
 }
