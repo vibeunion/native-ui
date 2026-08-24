@@ -45,6 +45,85 @@ Zig suite. Product-specific replay fixtures, environment policy, screen
 capture prototypes, undeclared platform features, vendored compiler output,
 and journal-format migrations are intentionally excluded.
 
+## GPUI-Ecosystem UI Component Library
+
+The foundation adds a public Native SDK counterpart for every module in two
+pinned GPUI-ecosystem catalogs: **99 modules total, 42 from Zed `crates/ui`
+plus 57 from `gpui-component`, with 0 missing entries**. This is a
+machine-checked Native SDK component surface, not a GPUI runtime dependency or
+an API-compatibility claim.
+
+| Layer | Representative public entries | What it provides |
+| --- | --- | --- |
+| Controls | `Ui.button`, `Ui.accordion`, `Ui.alert`, `Ui.avatar`, `Ui.badge`, `Ui.checkbox`, `Ui.combobox`, `Ui.dialog`, `Ui.input`, `Ui.table`, `Ui.tooltip`, `Ui.tree` | Named retained controls with typed messages, semantics, and caller-owned values. |
+| Composites | `Ui.callout`, `Ui.commandPalette`, `Ui.descriptionList`, `Ui.dock`, `Ui.form`, `Ui.hoverCard`, `Ui.searchableList`, `Ui.setting`, `Ui.sidebar`, `Ui.stepper` | Stateless builders that lower immediately to ordinary widgets without introducing component-local product state. |
+| Surfaces and platform services | `Ui.chart`, `Ui.code`, `Ui.scroll`, `Ui.virtualList`, `Ui.nativeMenu`, clipboard effects | Existing bounded high-performance surfaces and platform-owned services instead of copied GPUI window, focus, input, or global-state machinery. |
+
+Use the catalog through `native_sdk.canvas.Ui(Msg)`. Application state,
+selection, open/closed state, validation, and pending/result state stay in the
+caller's `Model`:
+
+```zig
+const native_sdk = @import("native_sdk");
+const Ui = native_sdk.canvas.Ui(Msg);
+
+fn commandView(ui: *Ui, model: Model) Ui.Node {
+    const save = ui.button(.{ .on_press = .save }, "Save");
+    const search = ui.searchField(.{
+        .text = model.query,
+        .on_input = Ui.inputMsg(.query_changed),
+    });
+    const results = ui.list(.{}, commandRows(ui, model));
+
+    return ui.column(.{ .gap = 12 }, .{
+        save,
+        ui.commandPalette(.{ .on_dismiss = .close_commands }, search, results),
+    });
+}
+```
+
+The registry records each reference module, its concrete Native SDK entry
+point, and one honest implementation class: direct widget, stateless
+composite, runtime surface, algorithm contract, platform-owned service,
+caller-owned state, or product composition. Compile-time and runtime tests
+reject duplicate, unresolved, or missing entries.
+
+<details>
+<summary><strong>Zed <code>crates/ui</code> counterparts (42)</strong></summary>
+
+`ai`, `avatar`, `banner`, `button`, `callout`, `chip`, `collab`,
+`context_menu`, `count_badge`, `data_table`, `diff_stat`, `disclosure`,
+`divider`, `dropdown_menu`, `facepile`, `gradient_fade`, `group`, `icon`,
+`image`, `indent_guides`, `indicator`, `keybinding`, `keybinding_hint`,
+`label`, `list`, `modal`, `navigable`, `notification`, `popover`,
+`popover_menu`, `progress`, `project_empty_state`, `redistributable_columns`,
+`right_click_menu`, `scrollbar`, `stack`, `sticky_items`, `tab`, `tab_bar`,
+`toggle`, `tooltip`, `tree_view_item`.
+
+</details>
+
+<details>
+<summary><strong><code>gpui-component</code> counterparts (57)</strong></summary>
+
+`global_state`, `accordion`, `alert`, `avatar`, `badge`, `breadcrumb`,
+`button`, `chart`, `checkbox`, `clipboard`, `collapsible`, `color_picker`,
+`combobox`, `command`, `description_list`, `dialog`, `dock`, `form`,
+`group_box`, `highlighter`, `history`, `hover_card`, `input`, `kbd`, `label`,
+`link`, `list`, `menu`, `native_menu`, `notification`, `pagination`, `plot`,
+`popover`, `progress`, `radio`, `rating`, `resizable`, `scroll`,
+`searchable_list`, `select`, `separator`, `setting`, `sheet`, `sidebar`,
+`skeleton`, `slider`, `spinner`, `status_bar`, `stepper`, `switch`, `tab`,
+`table`, `tag`, `text`, `theme`, `tooltip`, `tree`.
+
+</details>
+
+Start with the [UI-library parity guide](./docs/src/app/docs/ui-library-parity/page.mdx)
+for usage and ownership examples. The
+[parity contract](./docs/GPUI_UI_LIBRARY_PARITY_CONTRACT.md),
+[public registry](./src/primitives/canvas/ui_library.zig), and generated
+[inventory receipt](./src/primitives/canvas/testdata/ui_library_inventory_receipt.json)
+are the machine-checkable sources of truth.
+
 UI-library parity is a platform-neutral API and ownership claim, not a claim
 that every OS backend has identical accessibility, text, IME, packaging, or
 custom-host evidence. See the guide and
