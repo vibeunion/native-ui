@@ -68,6 +68,12 @@ The generated `src/components/ui_foundation.native` is application-owned. Use
 content. The machine-readable inventory is
 [`docs/public-ui-foundation-inventory.json`](./docs/public-ui-foundation-inventory.json).
 
+Consumers that must remain on Native SDK 0.9.5 can apply the explicitly
+non-active [`0.9.5 UI compatibility artifact`](./patches/compat/native-sdk-0.9.5-ui-foundation.patch)
+after the runtime and compiler patches from distribution `15fd874`. Its exact
+base, prerequisites, and hash are recorded in the current manifest. This does
+not reactivate the retired 0.9.5 runtime/compiler distribution on `main`.
+
 ## GPUI-Ecosystem UI Component Library
 
 The foundation adds a public Native SDK counterpart for every module in two

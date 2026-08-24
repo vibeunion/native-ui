@@ -118,7 +118,7 @@
     },
     {
       "name": "radio-group",
-      "doc": "Logical radiogroup: give it an accessible label; descendant radios at any nesting depth share one Tab stop and selection, arrows wrap, and Home/End move to the scope edges."
+      "doc": "Logical radiogroup: descendant radios at any nesting depth share one Tab stop and selection; arrows plus Home/End move focus and selection across the scope."
     },
     {
       "name": "tabs",
@@ -218,7 +218,7 @@
     },
     {
       "name": "markdown",
-      "doc": "Renders a markdown string (GFM subset, pipe tables and safe presentational HTML included) as widgets; source is one {binding}, preloaded leading images map through images, links dispatch on-link (bare URLs autolink), <details> blocks toggle via on-details + details-expanded, #123 refs linkify via issue-link-base."
+      "doc": "Renders a markdown string (GFM subset, pipe tables included) as widgets; source is one {binding}, links dispatch on-link (bare URLs autolink), <details> blocks toggle via on-details + details-expanded, #123 refs linkify via issue-link-base."
     },
     {
       "name": "stepper",
@@ -270,7 +270,7 @@
     },
     {
       "name": "image",
-      "doc": "The image leaf: draws a RUNTIME-REGISTERED image by its model-owned u64 ImageId — the id Cmd.imageLoad (TS) or fx.loadImage/fx.registerImageBytes (Zig) registered pixels under. image is one required {binding}; ids are model data, never markup literals, and 0 draws nothing (store the id in the model only when the load reports loaded). Display-only (presses fall through); size it with width/height or grow (no intrinsic size); label it for screen readers."
+      "doc": "The image leaf: draws a RUNTIME-REGISTERED image by its model-owned u64 ImageId — the id Cmd.imageLoad (TS) or fx.loadImage/fx.registerImageBytes (Zig) registered pixels under. Photo-size encoded sources decode aspect-preservingly to the app's fixed pixel budget (1 MiB default; app.zon images may raise it through 8 MiB), and load results report the registered dimensions. image is one required {binding}; ids are model data, never markup literals, and 0 draws nothing (store the id in the model only when the load reports loaded). source-x/source-y/source-width/source-height optionally select one atlas region in decoded-image pixel coordinates. Display-only; size it with width/height or grow; label it."
     },
     {
       "name": "video",
@@ -430,7 +430,7 @@
     },
     {
       "name": "autofocus",
-      "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus). The TEA way to focus an editor on create."
+      "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus), revealing it through ancestor scroll regions first. For editable text, an absent selection becomes a caret collapsed at the end of the text and the editor scrolls to reveal it; an existing selection is preserved. The TEA way to focus an editor on create."
     },
     {
       "name": "submit-on-enter",
@@ -517,6 +517,10 @@
     {
       "name": "on-double-press",
       "doc": "Dispatch a Msg on the second release of a double click: tag or tag:{payload}. The first release still dispatches on-press; the second dispatches this in place of another press. Legal on any element and makes it pressable, like on-press."
+    },
+    {
+      "name": "on-drag",
+      "doc": "Make an element draggable and dispatch during motion, release, and cancellation. Write tag:{sourceId}; the Msg arm must carry exactly the numeric fields sourceId, phase, x, y, viewWidth, and viewHeight. phase is 0 for change, 1 for end, and 2 for cancel; update can preview an insertion during change, commit on end, and restore on cancel."
     },
     {
       "name": "on-toggle",
@@ -671,7 +675,7 @@
       },
       {
         "name": "autofocus",
-        "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus). The TEA way to focus an editor on create."
+        "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus), revealing it through ancestor scroll regions first. For editable text, an absent selection becomes a caret collapsed at the end of the text and the editor scrolls to reveal it; an existing selection is preserved. The TEA way to focus an editor on create."
       }
     ],
     "timeline": [
@@ -697,7 +701,7 @@
       },
       {
         "name": "autofocus",
-        "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus). The TEA way to focus an editor on create."
+        "doc": "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus), revealing it through ancestor scroll regions first. For editable text, an absent selection becomes a caret collapsed at the end of the text and the editor scrolls to reveal it; an existing selection is preserved. The TEA way to focus an editor on create."
       }
     ],
     "timeline-item": [
@@ -745,7 +749,7 @@
     "avatar": [
       {
         "name": "image",
-        "doc": "avatar and image: one {binding} to a u64 ImageId the app registered at runtime (Cmd.imageLoad, fx.loadImage, fx.registerImageBytes); 0 draws nothing (an avatar falls back to its initials). Required on the image leaf."
+        "doc": "avatar and image: one {binding} to a u64 ImageId the app registered at runtime (Cmd.imageLoad, fx.loadImage, fx.registerImageBytes); encoded photos decode-to-fit the app's pixel budget and results carry the registered dimensions. 0 draws nothing (an avatar falls back to its initials). Required on the image leaf."
       },
       {
         "name": "source-x",
@@ -1498,6 +1502,7 @@
     "git-pull-request",
     "info",
     "menu",
+    "mic",
     "moon",
     "music",
     "panel-left",
@@ -1589,6 +1594,11 @@
       "name": "timeline-item",
       "form": "Zig view function",
       "path": "src/components/timeline_item.zig"
+    },
+    {
+      "name": "ui-foundation",
+      "form": "markup templates",
+      "path": "src/components/ui_foundation.native"
     }
   ]
 }

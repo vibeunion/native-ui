@@ -63,10 +63,21 @@ UI_INVENTORY_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.
 UI_TEMPLATE_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.template_source_sha256 || "")' "$MANIFEST")"
 UI_PUBLIC_API_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); process.stdout.write(m.ui_foundation?.public_api_sha256 || "")' "$MANIFEST")"
 UI_TEMPLATE_COUNT="$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(m.ui_foundation?.template_count || 0))' "$MANIFEST")"
+COMPAT_UI_PATCH="$ROOT/patches/$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.path || "")' "$MANIFEST")"
+COMPAT_UI_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.sha256 || "")' "$MANIFEST")"
+COMPAT_BASE="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.base_revision || "")' "$MANIFEST")"
+COMPAT_BASE_TREE="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.base_tree || "")' "$MANIFEST")"
+COMPAT_DISTRIBUTION="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.prerequisite_distribution_commit || "")' "$MANIFEST")"
+COMPAT_MANIFEST_SHA_EXPECTED="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a?.prerequisite_manifest_sha256 || "")' "$MANIFEST")"
 [[ -f "$UI_INVENTORY" && -f "$UI_TEMPLATE_SOURCE" && -f "$UI_PUBLIC_API" && -f "$UI_PATCH" ]] || {
   echo "ui-foundation manifest paths are incomplete" >&2
   exit 1
 }
+[[ -f "$COMPAT_UI_PATCH" ]] || { echo "0.9.5 UI compatibility patch is missing" >&2; exit 1; }
+[[ "$(hash_file "$COMPAT_UI_PATCH")" == "$COMPAT_UI_SHA_EXPECTED" ]] || { echo "0.9.5 UI compatibility patch hash mismatch" >&2; exit 1; }
+[[ "$(git -C "$ROOT" show -s --format=%T "$COMPAT_BASE")" == "$COMPAT_BASE_TREE" ]] || { echo "0.9.5 UI compatibility base tree mismatch" >&2; exit 1; }
+compat_manifest_sha="$(git -C "$ROOT" show "$COMPAT_DISTRIBUTION:patches/manifest.json" | shasum -a 256 | awk '{print $1}')"
+[[ "$compat_manifest_sha" == "$COMPAT_MANIFEST_SHA_EXPECTED" ]] || { echo "0.9.5 prerequisite manifest hash mismatch" >&2; exit 1; }
 [[ "$(hash_file "$UI_INVENTORY")" == "$UI_INVENTORY_SHA_EXPECTED" ]] || { echo "ui-foundation inventory hash mismatch" >&2; exit 1; }
 [[ "$(hash_file "$UI_TEMPLATE_SOURCE")" == "$UI_TEMPLATE_SHA_EXPECTED" ]] || { echo "ui-foundation template source hash mismatch" >&2; exit 1; }
 [[ "$(hash_file "$UI_PUBLIC_API")" == "$UI_PUBLIC_API_SHA_EXPECTED" ]] || { echo "ui-foundation public API hash mismatch" >&2; exit 1; }
@@ -91,7 +102,7 @@ for (const name of names) {
 NODE
 
 patch_additions() {
-  awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "${PATCHES[@]/#/$ROOT/}"
+  awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "${PATCHES[@]/#/$ROOT/}" "$COMPAT_UI_PATCH"
 }
 
 PUBLIC_BOUNDARY_PATTERN='VOLT_|CODEX_|agentd|/Users/|/Volumes/|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|api[_-]?key[[:space:]]*[:=]|(^|[^A-Za-z0-9_])(Volt|Codex|provider|approval|workspace|password|secret)([^A-Za-z0-9_]|$)'
@@ -115,17 +126,26 @@ if [[ "$(node -e 'const m=require(process.argv[1]); process.stdout.write(String(
   echo "manifest must declare exactly one ui-foundation patch" >&2
   exit 1
 fi
-if awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "$UI_PATCH" | rg -n -i 'VOLT_|CODEX_|agentd|/Users/|/Volumes/|provider|approval|workspace|password|secret|screen_capture|global_hotkey'; then
+if [[ "$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts?.filter((x)=>x.id==="native-sdk-0.9.5-ui-foundation") || []; process.stdout.write(String(a.length===1 && a[0].status==="compatibility-only"))' "$MANIFEST")" != true ]]; then
+  echo "manifest must declare exactly one compatibility-only 0.9.5 UI artifact" >&2
+  exit 1
+fi
+if awk '/^\+\+\+ / { next } /^\+/ { print substr($0, 2) }' "$UI_PATCH" "$COMPAT_UI_PATCH" | rg -n -i 'VOLT_|CODEX_|agentd|/Users/|/Volumes/|provider|approval|workspace|password|secret|screen_capture|global_hotkey'; then
   echo "ui-foundation patch contains product or private authority" >&2
   exit 1
 fi
 
 TMP="$(mktemp -d "/tmp/nui.XXXXXX")"
 TREE="$TMP/tree"
+COMPAT_TREE="$TMP/compat-tree"
 added_worktree=false
+added_compat_worktree=false
 cleanup() {
   if [[ "$added_worktree" == true ]]; then
     git -C "$ROOT" worktree remove --force "$TREE" >/dev/null 2>&1 || true
+  fi
+  if [[ "$added_compat_worktree" == true ]]; then
+    git -C "$ROOT" worktree remove --force "$COMPAT_TREE" >/dev/null 2>&1 || true
   fi
   rm -rf "$TMP"
 }
@@ -149,6 +169,29 @@ fi
 for patch in "${PATCHES[@]}"; do
   git -C "$TREE" apply "$ROOT/$patch"
 done
+
+compat_runtime_path="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a.prerequisite_patches[0].path)' "$MANIFEST")"
+compat_compiler_path="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a.prerequisite_patches[1].path)' "$MANIFEST")"
+compat_runtime_sha="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a.prerequisite_patches[0].sha256)' "$MANIFEST")"
+compat_compiler_sha="$(node -e 'const m=require(process.argv[1]); const a=m.compatibility_artifacts.find((x)=>x.id==="native-sdk-0.9.5-ui-foundation"); process.stdout.write(a.prerequisite_patches[1].sha256)' "$MANIFEST")"
+git -C "$ROOT" show "$COMPAT_DISTRIBUTION:patches/$compat_runtime_path" > "$TMP/compat-runtime.patch"
+git -C "$ROOT" show "$COMPAT_DISTRIBUTION:patches/$compat_compiler_path" > "$TMP/compat-compiler.patch"
+[[ "$(hash_file "$TMP/compat-runtime.patch")" == "$compat_runtime_sha" ]] || { echo "0.9.5 prerequisite runtime patch hash mismatch" >&2; exit 1; }
+[[ "$(hash_file "$TMP/compat-compiler.patch")" == "$compat_compiler_sha" ]] || { echo "0.9.5 prerequisite compiler patch hash mismatch" >&2; exit 1; }
+git -C "$ROOT" worktree add --detach "$COMPAT_TREE" "$COMPAT_BASE" >/dev/null
+added_compat_worktree=true
+for patch in "$TMP/compat-runtime.patch" "$TMP/compat-compiler.patch" "$COMPAT_UI_PATCH"; do
+  git -C "$COMPAT_TREE" apply --check "$patch"
+  git -C "$COMPAT_TREE" apply "$patch"
+done
+for patch in "$COMPAT_UI_PATCH" "$TMP/compat-compiler.patch" "$TMP/compat-runtime.patch"; do
+  git -C "$COMPAT_TREE" apply --reverse --check "$patch"
+  git -C "$COMPAT_TREE" apply --reverse "$patch"
+done
+if [[ -n "$(git -C "$COMPAT_TREE" status --short)" ]]; then
+  echo "0.9.5 UI compatibility reverse check did not restore the exact base" >&2
+  exit 1
+fi
 
 if [[ "$MODE" == "--verify" || "$MODE" == "--full" ]]; then
   npm --prefix "$TREE/packages/native-sdk" run scripts:check

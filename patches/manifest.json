@@ -53,6 +53,29 @@
     "template_count": 5,
     "state_owner": "caller"
   },
+  "compatibility_artifacts": [
+    {
+      "id": "native-sdk-0.9.5-ui-foundation",
+      "status": "compatibility-only",
+      "path": "compat/native-sdk-0.9.5-ui-foundation.patch",
+      "sha256": "2ea9e6c7afcd19f138a16dfaa947600606ea487977800db4bebc1fa6837073b7",
+      "scope": "ui-foundation",
+      "base_revision": "5a079b5f826deed7a4c179c5d645c651f976e234",
+      "base_tree": "228ab9ea6ca422f68b21dc9d80803d7494c9b6d7",
+      "prerequisite_distribution_commit": "15fd8749de13480a34e9c5d68315c4321f984e78",
+      "prerequisite_manifest_sha256": "f9d9ada24ffd5f17590c806b0321bfda62cd5f7237c6839a0b6956985380c999",
+      "prerequisite_patches": [
+        {
+          "path": "native-sdk-0.9.5-runtime-foundation.patch",
+          "sha256": "fda6ab4bdf497829605aaa84f794a05ba3e34b3d07bee86e4e0768f4bd4f3b23"
+        },
+        {
+          "path": "native-sdk-0.9.5-compiler-tooling.patch",
+          "sha256": "1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552"
+        }
+      ]
+    }
+  ],
   "wire_version": 8,
   "journal_layout_changed": false
 }

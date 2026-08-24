@@ -31,6 +31,12 @@ ownership to the app; it does not create a runtime dependency on a moving
 branch. Consumers must pin the VibeUnion distribution commit and verify the
 patch manifest before ejection.
 
+The manifest also records one `compatibility-only` artifact for applications
+that must remain on Native SDK 0.9.5. It carries only this UI foundation and
+must be applied after the exact runtime/compiler foundation from distribution
+`15fd874`; it is not part of the active 0.10.0 patch order and does not revive
+the retired 0.9.5 distribution.
+
 ## Boundaries
 
 The public layer excludes product routes, labels, provider/approval semantics,

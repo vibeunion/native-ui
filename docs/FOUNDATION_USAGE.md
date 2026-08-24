@@ -123,6 +123,22 @@ The order is part of the distribution contract. A base-tree mismatch or patch
 failure is a stop condition, not permission to use `--reject`, skip a hunk, or
 continue with a mixed SDK.
 
+### Native SDK 0.9.5 UI-only compatibility
+
+An application that is still pinned to the reviewed 0.9.5 foundation
+distribution `15fd874` may add only the shared UI vocabulary with:
+
+```bash
+git apply --check "$foundation/patches/compat/native-sdk-0.9.5-ui-foundation.patch"
+git apply "$foundation/patches/compat/native-sdk-0.9.5-ui-foundation.patch"
+```
+
+Apply it after that distribution's runtime and compiler patches. The current
+manifest records the old base tree, prerequisite patch hashes, and UI patch
+hash, and the foundation gate proves ordered apply/reverse restoration. The
+artifact is `compatibility-only`: it does not make the retired 0.9.5 patches
+active on `main` and must not be combined with the active 0.10.0 patch set.
+
 ## Consume The UI Templates
 
 After applying and building the pinned foundation, eject the public source into
