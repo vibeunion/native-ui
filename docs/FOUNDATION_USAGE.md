@@ -19,7 +19,8 @@ The repository has two kinds of foundation content:
    - `native-sdk-0.9.5-runtime-foundation.patch` adds the optional thin native
      host, viewport-aware composition, bounded surface input, secure recording
      refusal, retained text-edit after-state, worker wakeup, exactly-once host
-     teardown, and automation input pacing;
+     teardown, automation input pacing, and synchronized shortcut-capture names
+     in the public TypeScript and bridge contracts;
    - `native-sdk-0.9.5-compiler-tooling.patch` adds the Node stack budget,
      supported `DataView` use, and symbol-aware external-core `Bytes` folding.
 
@@ -35,7 +36,7 @@ the custom-host fixture has run on every operating system.
 | Surface | Current claim | Explicit boundary |
 | --- | --- | --- |
 | UI library | Every module in the two pinned GPUI catalogs has a real Native SDK entry and a machine-checked ownership class. | Catalog parity is not real-host accessibility, text shaping, IME, or packaging parity. |
-| Shortcut capture | The lifecycle and command contract is shared; macOS and Windows system engines implement it. | Linux and Chromium-backed hosts report it unsupported. |
+| Shortcut capture | The lifecycle and command contract is shared; macOS and Windows system engines implement it. Public package callers may use `shortcut_capture` or `shortcutCapture`. | Linux and Chromium-backed hosts report it unsupported. |
 | Runtime/tooling patches | The patch set is platform-neutral where the underlying Native SDK seam is platform-neutral. | Platform-specific behavior still follows the Native SDK support matrix. |
 | Thin `ts_host.zig` fixture | The formal app build proves the extension API, ownership rejection, lifecycle, and default-host fallback. | The committed fixture currently targets macOS/Metal; Windows and Linux custom-host builds need separate CI evidence before making that narrower claim. |
 
@@ -83,10 +84,11 @@ scripts/check-foundation-patches.sh --verify
 scripts/check-foundation-patches.sh --full
 ```
 
-`--verify` runs focused TypeScript, tooling, runtime-core, UI-shell, default
-host, and custom host gates. It also proves that `ts_host.zig` cannot declare a
-second reducer and that `hostPoll` cannot compile without `deinit`. `--full`
-adds the complete serial Zig suite.
+`--verify` checks the public package mirror and runtime TypeScript contract,
+then runs focused TypeScript, tooling, runtime-core, UI-shell, default host, and
+custom host gates. It also proves that `ts_host.zig` cannot declare a second
+reducer and that `hostPoll` cannot compile without `deinit`. `--full` adds the
+complete serial Zig suite.
 
 ## Apply The Patches
 
@@ -196,7 +198,7 @@ marked secure.
 The public artifacts dated August 24, 2026 have these hashes:
 
 - runtime foundation:
-  `0e7a644b43fc508710c4fe660cec4ad0e7606f1d6330a9e6fe2e40483c02b50e`;
+  `fda6ab4bdf497829605aaa84f794a05ba3e34b3d07bee86e4e0768f4bd4f3b23`;
 - compiler/tooling:
   `1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552`.
 
@@ -258,6 +260,9 @@ migration from this foundation alone.
   source tree; stop and select the manifest revision.
 - `patch hash mismatch`: the artifact changed; restore it or produce a new
   manifest and full review.
+- `Runtime TypeScript contract check failed`: a public package union or bridge
+  alias no longer matches the runtime enum; synchronize all three contracts
+  before publishing.
 - `product, private-path, or credential material found`: remove the leaked
   application-specific content instead of weakening the scanner.
 - `hostPoll requires deinit`: implement worker stop/join teardown or remove

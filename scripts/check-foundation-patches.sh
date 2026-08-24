@@ -108,6 +108,7 @@ for patch in "${PATCHES[@]}"; do
 done
 
 if [[ "$MODE" == "--verify" || "$MODE" == "--full" ]]; then
+  npm --prefix "$TREE/packages/native-sdk" run scripts:check
   (
     cd "$TREE/packages/core"
     npm ci

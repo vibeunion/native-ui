@@ -462,6 +462,8 @@ export type NativeSdkPlatformFeature =
   | "window_hide_on_close"
   | "windowHideOnClose"
   | "video_playback"
+  | "shortcut_capture"
+  | "shortcutCapture"
   | "videoPlayback";
 
 export type NativeSdkPlatformFeatureSelector =

@@ -20,7 +20,8 @@ The public foundation contains:
   which adds a thin app-owned host extension, viewport-aware composition,
   bounded native surface input hooks, secure session-input handling, retained
   text-edit after-state, an atomically published host-worker wake seam,
-  exactly-once host teardown, and automation input pacing;
+  exactly-once host teardown, automation input pacing, and synchronized public
+  TypeScript/bridge names for shortcut capture;
 - [`patches/native-sdk-0.9.5-compiler-tooling.patch`](./patches/native-sdk-0.9.5-compiler-tooling.patch),
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.

@@ -26,7 +26,7 @@
     {
       "order": 1,
       "path": "native-sdk-0.9.5-runtime-foundation.patch",
-      "sha256": "0e7a644b43fc508710c4fe660cec4ad0e7606f1d6330a9e6fe2e40483c02b50e",
+      "sha256": "fda6ab4bdf497829605aaa84f794a05ba3e34b3d07bee86e4e0768f4bd4f3b23",
       "scope": "runtime-foundation"
     },
     {

@@ -1150,3 +1150,24 @@ index 3ae88fc..daf8d6f 100644
          pub fn applyCanvasWidgetTextPointer(
              self: *RuntimeView,
              target_id: canvas.ObjectId,
+diff --git a/packages/native-sdk/native-sdk.d.ts b/packages/native-sdk/native-sdk.d.ts
+index 210dcd0..59cc44b 100644
+--- a/packages/native-sdk/native-sdk.d.ts
++++ b/packages/native-sdk/native-sdk.d.ts
+@@ -462,4 +462,6 @@ export type NativeSdkPlatformFeature =
+   | "window_hide_on_close"
+   | "windowHideOnClose"
+   | "video_playback"
++  | "shortcut_capture"
++  | "shortcutCapture"
+   | "videoPlayback";
+diff --git a/src/runtime/bridge_payload.zig b/src/runtime/bridge_payload.zig
+index 909f869..3e9c968 100644
+--- a/src/runtime/bridge_payload.zig
++++ b/src/runtime/bridge_payload.zig
+@@ -129,4 +129,5 @@ pub fn platformFeatureFromString(value: []const u8) ?platform.PlatformFeature {
+     if (std.mem.eql(u8, value, "systemAudioCapture")) return .system_audio_capture;
+     if (std.mem.eql(u8, value, "windowHideOnClose")) return .window_hide_on_close;
++    if (std.mem.eql(u8, value, "shortcutCapture")) return .shortcut_capture;
+     if (std.mem.eql(u8, value, "videoPlayback")) return .video_playback;
+     return null;
