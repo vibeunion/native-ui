@@ -88,34 +88,34 @@ composite, runtime surface, algorithm contract, platform-owned service,
 caller-owned state, or product composition. Compile-time and runtime tests
 reject duplicate, unresolved, or missing entries.
 
-<details>
-<summary><strong>Zed <code>crates/ui</code> counterparts (42)</strong></summary>
+### Zed crates/ui coverage (42)
 
-`ai`, `avatar`, `banner`, `button`, `callout`, `chip`, `collab`,
-`context_menu`, `count_badge`, `data_table`, `diff_stat`, `disclosure`,
-`divider`, `dropdown_menu`, `facepile`, `gradient_fade`, `group`, `icon`,
-`image`, `indent_guides`, `indicator`, `keybinding`, `keybinding_hint`,
-`label`, `list`, `modal`, `navigable`, `notification`, `popover`,
-`popover_menu`, `progress`, `project_empty_state`, `redistributable_columns`,
-`right_click_menu`, `scrollbar`, `stack`, `sticky_items`, `tab`, `tab_bar`,
-`toggle`, `tooltip`, `tree_view_item`.
+- **Direct widgets (11):** avatar, button, dropdown_menu, icon, image, list,
+  popover, progress, stack, toggle, tooltip.
+- **Stateless composites (22):** banner, callout, chip, count_badge,
+  data_table, diff_stat, disclosure, divider, facepile, group, indicator,
+  keybinding, keybinding_hint, label, modal, notification, popover_menu,
+  redistributable_columns, sticky_items, tab, tab_bar, tree_view_item.
+- **Runtime surfaces (2):** indent_guides, scrollbar.
+- **Platform-owned services (2):** context_menu, right_click_menu.
+- **Caller-owned navigation (1):** navigable.
+- **Algorithm contract (1):** gradient_fade.
+- **Product compositions (3):** ai, collab, project_empty_state.
 
-</details>
+### gpui-component coverage (57)
 
-<details>
-<summary><strong><code>gpui-component</code> counterparts (57)</strong></summary>
-
-`global_state`, `accordion`, `alert`, `avatar`, `badge`, `breadcrumb`,
-`button`, `chart`, `checkbox`, `clipboard`, `collapsible`, `color_picker`,
-`combobox`, `command`, `description_list`, `dialog`, `dock`, `form`,
-`group_box`, `highlighter`, `history`, `hover_card`, `input`, `kbd`, `label`,
-`link`, `list`, `menu`, `native_menu`, `notification`, `pagination`, `plot`,
-`popover`, `progress`, `radio`, `rating`, `resizable`, `scroll`,
-`searchable_list`, `select`, `separator`, `setting`, `sheet`, `sidebar`,
-`skeleton`, `slider`, `spinner`, `status_bar`, `stepper`, `switch`, `tab`,
-`table`, `tag`, `text`, `theme`, `tooltip`, `tree`.
-
-</details>
+- **Direct widgets (28):** accordion, alert, avatar, badge, breadcrumb,
+  button, checkbox, combobox, dialog, input, list, pagination, popover,
+  progress, radio, resizable, select, separator, sheet, skeleton, slider,
+  spinner, status_bar, switch, table, text, tooltip, tree.
+- **Stateless composites (21):** collapsible, color_picker, command,
+  description_list, dock, form, group_box, history, hover_card, kbd, label,
+  link, menu, notification, rating, searchable_list, setting, sidebar,
+  stepper, tab, tag.
+- **Runtime surfaces (3):** chart, highlighter, scroll.
+- **Platform-owned services (2):** clipboard, native_menu.
+- **Caller-owned state and tokens (2):** global_state, theme.
+- **Algorithm contract (1):** plot.
 
 Start with the [UI-library parity guide](./docs/src/app/docs/ui-library-parity/page.mdx)
 for usage and ownership examples. The
