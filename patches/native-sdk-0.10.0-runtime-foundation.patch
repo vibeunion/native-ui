@@ -1,0 +1,1152 @@
+diff --git a/build.zig b/build.zig
+index 7f4272216dad26af91bb49294875e77893c5dedd..d6c0417c794722b96f567bf14bb0011fb42167bc 100644
+--- a/build.zig
++++ b/build.zig
+@@ -1778,6 +1778,7 @@ pub fn build(b: *std.Build) void {
+         addExampleTestStep(b, host_cli_exe, native_examples_step, "test-example-feed", "Run feed example tests", "examples/feed", .managed),
+         addExampleTestStep(b, host_cli_exe, native_examples_step, "test-example-service-feed-reader", "Run TypeScript service feed-reader example tests", "examples/service-feed-reader", .managed),
+         addExampleTestStep(b, host_cli_exe, native_examples_step, "test-example-canvas-preview", "Run canvas preview example tests", "examples/canvas-preview", .managed),
++        addExampleTestStep(b, host_cli_exe, native_examples_step, "test-example-ts-host-foundation", "Build the neutral TypeScript host-extension contract fixture", "examples/ts-host-foundation", .managed),
+         addExampleTestStep(b, host_cli_exe, native_examples_step, "test-example-capabilities", "Run capabilities example tests", "examples/capabilities", .owned),
+     };
+     for (native_example_shard_steps) |shard_step| {
+diff --git a/build/app.zig b/build/app.zig
+index 0ec7a26301620f571fdf140aa6d5e7912bb804c6..c39d6fc4d6b88bc2b3dca5882bd3f5007f2e0b72 100644
+--- a/build/app.zig
++++ b/build/app.zig
+@@ -365,6 +365,7 @@ const core_compiler_teaching =
+ /// links. Built once per app build and shared by the exe and test modules.
+ const TsCoreStage = struct {
+     main_root: std.Build.LazyPath,
++    host_root: std.Build.LazyPath,
+     /// The staged mobile wiring (ts_core_mobile.zig beside the same
+     /// mirror/registry files): the embed static library's `app`
+     /// module roots here on iOS/Android targets.
+@@ -1208,6 +1209,10 @@ fn tsCoreStage(
+     }
+     _ = staged.add("window_views.zig", tsWindowRegistrySource(b, window_views));
+     const main_root = staged.addCopyFile(dep.path("src/app_runner/ts_core_main.zig"), "main.zig");
++    const host_root = if (appFileExists(b, app_root, "src/ts_host.zig"))
++        b.path(appPath(b, app_root, "src/ts_host.zig"))
++    else
++        dep.path("src/app_runner/ts_host_default.zig");
+     // The mobile wiring stages beside the desktop entry: same mirror, same
+     // registry, same carrier constant — only the shell differs (the embed
+     // host's AppDef contract instead of a process `main`).
+@@ -1220,6 +1225,7 @@ fn tsCoreStage(
+         .service_archive = service_archive,
+         .markup_c = markup_c,
+         .migrations = migrations_zig,
++        .host_root = host_root,
+     };
+ }
+ 
+@@ -2066,6 +2072,13 @@ fn appModule(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.Resolv
+         // The in-process service archive links beside it (distinct symbol
+         // prefix; its runtime internals are localized).
+         if (stage.service_archive) |service_archive| app_mod.addObjectFile(service_archive);
++        const host_mod = b.createModule(.{
++            .root_source_file = stage.host_root,
++            .target = target,
++            .optimize = optimize,
++        });
++        host_mod.addImport("native_sdk", native_sdk_mod);
++        app_mod.addImport("ts_host", host_mod);
+     }
+     if (app_config.sqlite_capability) {
+         // `store` and the relational `sqlite` tier share this exact object.
+diff --git a/examples/ts-host-foundation/app.zon b/examples/ts-host-foundation/app.zon
+new file mode 100644
+index 0000000000000000000000000000000000000000..11dbb2f99b35dbca1d8a4204930a51f072a8f74e
+--- /dev/null
++++ b/examples/ts-host-foundation/app.zon
+@@ -0,0 +1,30 @@
++.{
++    .id = "dev.native_sdk.ts_host_foundation",
++    .name = "ts-host-foundation",
++    .display_name = "TypeScript Host Foundation",
++    .version = "0.1.0",
++    .platforms = .{"macos"},
++    .capabilities = .{ "native_views", "gpu_surfaces" },
++    .shell = .{
++        .windows = .{
++            .{
++                .label = "main",
++                .title = "TypeScript Host Foundation",
++                .width = 480,
++                .height = 320,
++                .restore_policy = "center_on_primary",
++                .views = .{
++                    .{ .label = "foundation-canvas", .kind = "gpu_surface", .fill = true, .role = "Host foundation canvas", .accessibility_label = "Host foundation", .gpu_backend = "metal", .gpu_pixel_format = "bgra8_unorm", .gpu_present_mode = "timer", .gpu_alpha_mode = "opaque", .gpu_color_space = "srgb", .gpu_vsync = true },
++                },
++            },
++        },
++    },
++    .security = .{
++        .navigation = .{
++            .allowed_origins = .{ "zero://app", "zero://inline" },
++            .external_links = .{ .action = "deny" },
++        },
++    },
++    .web_engine = "system",
++    .cef = .{ .dir = "third_party/cef/macos", .auto_install = false },
++}
+diff --git a/examples/ts-host-foundation/src/app.native b/examples/ts-host-foundation/src/app.native
+new file mode 100644
+index 0000000000000000000000000000000000000000..10fe2ff4be511d2faa94cd23d5cbbcf685532038
+--- /dev/null
++++ b/examples/ts-host-foundation/src/app.native
+@@ -0,0 +1,3 @@
++<column padding="16" gap="8">
++  <text>{title}</text>
++</column>
+diff --git a/examples/ts-host-foundation/src/core.ts b/examples/ts-host-foundation/src/core.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..670d2d557317e44d18b0ed9c358e6462dcbc9e46
+--- /dev/null
++++ b/examples/ts-host-foundation/src/core.ts
+@@ -0,0 +1,23 @@
++import { asciiBytes } from "@native-sdk/core";
++
++export interface Model {
++  readonly title: Uint8Array;
++}
++
++export type Msg =
++  | { readonly kind: "noop" }
++  | { readonly kind: "reset" };
++
++export function initialModel(): Model {
++  return { title: asciiBytes("Host foundation") };
++}
++
++export function update(model: Model, msg: Msg): Model {
++  switch (msg.kind) {
++    case "noop":
++    case "reset":
++      return model;
++  }
++}
++
++export const viewUnbound = ["noop", "reset"] as const;
+diff --git a/examples/ts-host-foundation/src/ts_host.zig b/examples/ts-host-foundation/src/ts_host.zig
+new file mode 100644
+index 0000000000000000000000000000000000000000..f7ba4dc5c8256ca99ec4ffc85ea4cbfdea812d7b
+--- /dev/null
++++ b/examples/ts-host-foundation/src/ts_host.zig
+@@ -0,0 +1,54 @@
++const native_sdk = @import("native_sdk");
++
++pub fn tokens(comptime core: type, model: *const core.Model) native_sdk.canvas.DesignTokens {
++    _ = model;
++    return .{};
++}
++
++pub fn viewViewport(
++    comptime core: type,
++    ui: anytype,
++    model: *const core.Model,
++    viewport: native_sdk.geometry.SizeF,
++) @TypeOf(ui.*).Node {
++    _ = model;
++    return ui.column(.{ .gap = 8, .padding = 16 }, .{
++        ui.text(.{}, ui.fmt("Host foundation {d:.0}x{d:.0}", .{ viewport.width, viewport.height })),
++    });
++}
++
++pub fn hostPoll(effects: anytype) void {
++    _ = effects;
++}
++
++pub fn surfaceKeyMsg(
++    comptime core: type,
++    tree: anytype,
++    target: native_sdk.canvas.WidgetFocusTarget,
++    keyboard: native_sdk.canvas.WidgetKeyboardEvent,
++) ?core.Msg {
++    _ = tree;
++    _ = target;
++    _ = keyboard;
++    return null;
++}
++
++pub fn surfaceTextEdit(
++    comptime core: type,
++    tree: anytype,
++    target_id: native_sdk.canvas.ObjectId,
++    edit: native_sdk.canvas.TextInputEvent,
++    post_state: ?native_sdk.canvas.TextEditState,
++) ?core.Msg {
++    _ = tree;
++    _ = target_id;
++    _ = edit;
++    _ = post_state;
++    return null;
++}
++
++pub fn secureInputWidgetIds() []const native_sdk.canvas.ObjectId {
++    return &.{};
++}
++
++pub fn deinit() void {}
+diff --git a/src/app_runner/root.zig b/src/app_runner/root.zig
+index b198edac143b480fd3d2ce0c30ec39c38036f336..016030c357fc1b3b22b61a1febc4efef05cf565e 100644
+--- a/src/app_runner/root.zig
++++ b/src/app_runner/root.zig
+@@ -67,6 +67,7 @@ pub const RunOptions = struct {
+     commands: ?[]const native_sdk.Command = null,
+     menus: ?[]const native_sdk.Menu = null,
+     shortcuts: ?[]const native_sdk.Shortcut = null,
++    secure_canvas_widget_ids: []const native_sdk.canvas.ObjectId = &.{},
+     /// Filled by `runWithOptions` from the manifest capability. App entry
+     /// points do not set this themselves; the field only carries the owned
+     /// binding uniformly into each platform's runtime options.
+@@ -833,6 +834,7 @@ fn runNull(app: native_sdk.App, options: RunOptions, init: std.process.Init) !vo
+         .file_access = options.file_access,
+         .environ = init.minimal.environ,
+         .session_recorder = session_recorder,
++        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
+     });
+ 
+     try runtime.run(app);
+@@ -907,6 +909,7 @@ fn runMacos(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
+         .file_access = options.file_access,
+         .environ = init.minimal.environ,
+         .session_recorder = session_recorder,
++        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
+     });
+     native_sdk.runtime.launch_timing.lap("runtime_ready");
+ 
+@@ -978,6 +981,7 @@ fn runLinux(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
+         .file_access = options.file_access,
+         .environ = init.minimal.environ,
+         .session_recorder = session_recorder,
++        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
+     });
+ 
+     try runtime.run(app);
+@@ -1048,6 +1052,7 @@ fn runWindows(app: native_sdk.App, options: RunOptions, init: std.process.Init)
+         .file_access = options.file_access,
+         .environ = init.minimal.environ,
+         .session_recorder = session_recorder,
++        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
+     });
+ 
+     try runtime.run(app);
+@@ -1200,6 +1205,7 @@ fn runSessionReplay(app: native_sdk.App, options: RunOptions, init: std.process.
+         .commands = commands,
+         .menus = menus,
+         .shortcuts = shortcuts,
++        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
+     });
+ 
+     const verify = if (init.environ_map.get("NATIVE_SDK_SESSION_VERIFY")) |value|
+diff --git a/src/app_runner/ts_core_main.zig b/src/app_runner/ts_core_main.zig
+index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943fbf77c69d 100644
+--- a/src/app_runner/ts_core_main.zig
++++ b/src/app_runner/ts_core_main.zig
+@@ -63,6 +63,7 @@ const runner = @import("runner");
+ const native_sdk = @import("native_sdk");
+ const manifest = @import("app_manifest_zon");
+ pub const core = @import("core.zig");
++const ts_host = @import("ts_host");
+ const services = @import("services.zig");
+ const service_carrier = @import("service_carrier.zig");
+ const relational_migrations = @import("migrations.zig");
+@@ -94,6 +95,7 @@ const allowed_origins = manifestAllowedOrigins();
+ const app_data_dir_env = "NATIVE_SDK_APP_DATA_DIR";
+ 
+ pub fn main(init: std.process.Init) !void {
++    comptime validateTsHost();
+     var options: Adapter.Options = .{
+         .name = manifest.name,
+         .scene = shell_scene,
+@@ -117,6 +119,33 @@ pub fn main(init: std.process.Init) !void {
+         // exported command mapper.
+         options.on_command = core.commandMsg;
+     }
++    if (comptime @hasDecl(ts_host, "tokens")) {
++        options.tokens_fn = hostTokens;
++    }
++    if (comptime @hasDecl(ts_host, "viewViewport")) {
++        options.view_viewport = hostViewportView;
++    } else if (comptime @hasDecl(ts_host, "view")) {
++        options.view = hostView;
++    }
++    if (comptime @hasDecl(ts_host, "hostPoll")) {
++        options.host_poll = hostPoll;
++    }
++    if (comptime @hasDecl(ts_host, "surfaceKeyMsg")) {
++        options.surface_key = hostSurfaceKeyMsg;
++    }
++    if (comptime @hasDecl(ts_host, "surfaceTextEdit")) {
++        options.surface_text_edit = hostSurfaceTextEdit;
++    }
++    if (comptime @hasDecl(ts_host, "deinit")) {
++        options.host_deinit = hostDeinit;
++    }
++    if (comptime @hasDecl(ts_host, "markupSources")) {
++        options.markup.?.sources = ts_host.markupSources();
++    }
++    if (comptime (@hasDecl(ts_host, "view") or @hasDecl(ts_host, "viewViewport")) and @hasDecl(ts_host, "fragments")) {
++        options.fragment_watch = .{ .fragments = ts_host.fragments(core), .io = init.io };
++        options.markup = null;
++    }
+     // The platform caches directory for this app: when the core's
+     // `Cmd.audioPlay` names a URL with no cachePath, the bridge derives
+     // the conventional content-addressed path under this directory —
+@@ -318,6 +347,10 @@ pub fn main(init: std.process.Init) !void {
+         .default_frame = comptime defaultFrame(),
+         .restore_state = comptime startupRestoreState(),
+         .js_window_api = false,
++        .secure_canvas_widget_ids = if (comptime @hasDecl(ts_host, "secureInputWidgetIds"))
++            ts_host.secureInputWidgetIds()
++        else
++            &.{},
+         .security = .{
+             .permissions = app_permissions,
+             .navigation = .{ .allowed_origins = allowed_origins },
+@@ -514,3 +547,66 @@ fn manifestAllowedOrigins() []const []const u8 {
+         return manifestStringList(manifest.security.navigation, "allowed_origins");
+     }
+ }
++
++fn hostTokens(model: *const core.Model) native_sdk.canvas.DesignTokens {
++    return ts_host.tokens(core, model);
++}
++
++fn hostView(ui: *Adapter.Ui, model: *const core.Model) Adapter.Ui.Node {
++    return ts_host.view(core, ui, model);
++}
++
++fn hostViewportView(ui: *Adapter.Ui, model: *const core.Model, viewport: native_sdk.geometry.SizeF) Adapter.Ui.Node {
++    return ts_host.viewViewport(core, ui, model, viewport);
++}
++
++fn hostPoll(effects: *Adapter.Effects) void {
++    ts_host.hostPoll(effects);
++}
++
++fn hostSurfaceKeyMsg(
++    tree: *const Adapter.Ui.Tree,
++    target: native_sdk.canvas.WidgetFocusTarget,
++    keyboard: native_sdk.canvas.WidgetKeyboardEvent,
++) ?Adapter.Msg {
++    return ts_host.surfaceKeyMsg(core, tree, target, keyboard);
++}
++
++fn hostSurfaceTextEdit(
++    tree: *const Adapter.Ui.Tree,
++    target_id: native_sdk.canvas.ObjectId,
++    edit: native_sdk.canvas.TextInputEvent,
++    post_state: ?native_sdk.canvas.TextEditState,
++) ?Adapter.Msg {
++    return ts_host.surfaceTextEdit(core, tree, target_id, edit, post_state);
++}
++
++fn hostDeinit() void {
++    ts_host.deinit();
++}
++
++fn validateTsHost() void {
++    if (@hasDecl(ts_host, "hostPoll") and !@hasDecl(ts_host, "deinit")) {
++        @compileError("src/ts_host.zig hostPoll requires deinit to stop and join every worker before the wake binding is revoked");
++    }
++    inline for (.{
++        "Model",
++        "Msg",
++        "initialModel",
++        "update",
++        "subscriptions",
++        "commandMsg",
++        "frameMsg",
++        "keyMsg",
++        "appearanceMsg",
++        "chromeMsg",
++        "envMsgs",
++        "modelUnbound",
++        "msgUnbound",
++        "viewUnbound",
++    }) |name| {
++        if (@hasDecl(ts_host, name)) {
++            @compileError("src/ts_host.zig is a thin native extension and must not declare " ++ name);
++        }
++    }
++}
+diff --git a/src/app_runner/ts_host_default.zig b/src/app_runner/ts_host_default.zig
+new file mode 100644
+index 0000000000000000000000000000000000000000..8b84c6e383018c53bec97b0db64b892103db789b
+--- /dev/null
++++ b/src/app_runner/ts_host_default.zig
+@@ -0,0 +1 @@
++//! Empty host extension for TypeScript apps that do not provide src/ts_host.zig.
+diff --git a/src/runtime/api.zig b/src/runtime/api.zig
+index 50dbbcc4f7b402cb517d4a049e508f7e4f73ad6c..0218f91d6600317ed22c3e2b5061a52901e98f75 100644
+--- a/src/runtime/api.zig
++++ b/src/runtime/api.zig
+@@ -554,4 +554,15 @@ pub const Options = struct {
+     /// fingerprint checkpoint. The app runner arms this from
+     /// `NATIVE_SDK_SESSION_RECORD=<path>`.
+     session_recorder: ?*runtime_session_record.SessionRecorder = null,
++    /// Canvas widget ids whose committed input must never be persisted in a
++    /// session journal. Live dispatch still runs, but recording fails closed
++    /// before the raw event is staged and therefore remains unsealed.
++    secure_canvas_widget_ids: []const canvas.ObjectId = &.{},
+ };
++
++pub fn isSecureCanvasWidgetId(secure_ids: []const canvas.ObjectId, id: canvas.ObjectId) bool {
++    for (secure_ids) |secure_id| {
++        if (secure_id == id) return true;
++    }
++    return false;
++}
+diff --git a/src/runtime/automation_widget_dispatch.zig b/src/runtime/automation_widget_dispatch.zig
+index c711705650a861a4ba9bfb8dac1df75999868a30..54c90e524f73bf4cd7a3b7435ec659b6e4789027 100644
+--- a/src/runtime/automation_widget_dispatch.zig
++++ b/src/runtime/automation_widget_dispatch.zig
+@@ -701,7 +701,13 @@ pub fn RuntimeAutomationWidgetDispatch(comptime Runtime: type) type {
+             };
+             // Same observability contract as selectAutomationCanvasWidget:
+             // the repaint this edit triggers must publish its completing
+-            // frame, so record the automation input it resolves.
++            // frame. Direct automation edits never pass through the host's
++            // platform-input callback, so notify the pacing seam explicitly
++            // before recording the automation input it resolves.
++            self.options.platform.services.noteGpuSurfaceInput(
++                self.views[view_index].window_id,
++                self.views[view_index].label,
++            ) catch {};
+             self.views[view_index].recordGpuSurfaceInputTimestamp(automationInputTimestampNs());
+             try CanvasWidgetEventMethods().updateCanvasWidgetTextFromKeyboard(self, &keyboard_event);
+             try self.dispatchEvent(app, .{ .canvas_widget_keyboard = keyboard_event });
+diff --git a/src/runtime/canvas_widget_event_tests.zig b/src/runtime/canvas_widget_event_tests.zig
+index 99123ead69d3d333a77983020a96a3a2ea8f9b9e..cadfa8713ea30dd42ecb3a0ddcfc98732fd3fe2e 100644
+--- a/src/runtime/canvas_widget_event_tests.zig
++++ b/src/runtime/canvas_widget_event_tests.zig
+@@ -65,6 +65,57 @@ const builtinBridgeErrorMessage = support.builtinBridgeErrorMessage;
+ const testViewByLabel = support.testViewByLabel;
+ const testCanvasWidgetPartId = support.testCanvasWidgetPartId;
+ 
++test "automation canvas text edit notifies the host input pacing seam" {
++    const NoteProbe = struct {
++        var count: usize = 0;
++        var last_window_id: platform.WindowId = 0;
++        var last_label_matches: bool = false;
++
++        fn note(context: ?*anyopaque, window_id: platform.WindowId, label: []const u8) anyerror!void {
++            _ = context;
++            count += 1;
++            last_window_id = window_id;
++            last_label_matches = std.mem.eql(u8, label, "canvas");
++        }
++    };
++    const TestApp = struct {
++        fn app(self: *@This()) App {
++            return .{ .context = self, .name = "gpu-widget-automation-input-pacing", .source = platform.WebViewSource.html("<h1>GPU</h1>") };
++        }
++    };
++
++    NoteProbe.count = 0;
++    NoteProbe.last_window_id = 0;
++    NoteProbe.last_label_matches = false;
++    const harness = try TestHarness().create(std.testing.allocator, .{});
++    defer harness.destroy(std.testing.allocator);
++    harness.null_platform.gpu_surfaces = true;
++    var app_state: TestApp = .{};
++    const app = app_state.app();
++    try harness.start(app);
++
++    _ = try harness.runtime.createView(.{
++        .window_id = 1,
++        .label = "canvas",
++        .kind = .gpu_surface,
++        .frame = geometry.RectF.init(0, 0, 240, 120),
++    });
++    var nodes: [2]canvas.WidgetLayoutNode = undefined;
++    const layout = try canvas.layoutWidgetTree(
++        .{ .id = 1, .kind = .panel, .children = &.{.{ .id = 2, .kind = .text_field, .frame = geometry.RectF.init(12, 16, 160, 36), .text = "Draft" }} },
++        geometry.RectF.init(0, 0, 240, 120),
++        &nodes,
++    );
++    _ = try harness.runtime.setCanvasWidgetLayout(1, "canvas", layout);
++    harness.runtime.options.platform.services.note_gpu_surface_input_fn = NoteProbe.note;
++
++    try dispatchAutomationWidgetAction(&harness.runtime, app, .{ .view_label = "canvas", .id = 2, .action = .set_selection, .value = "0 3" });
++
++    try std.testing.expectEqual(@as(usize, 1), NoteProbe.count);
++    try std.testing.expectEqual(@as(platform.WindowId, 1), NoteProbe.last_window_id);
++    try std.testing.expect(NoteProbe.last_label_matches);
++}
++
+ test "runtime tracks retained canvas widget cursor intent" {
+     const TestApp = struct {
+         fn app(self: *@This()) App {
+diff --git a/src/runtime/canvas_widget_state.zig b/src/runtime/canvas_widget_state.zig
+index 11296ed1c0b8c4cd7fb9b4e171268e22071d153e..f4c292e71ad61221c16fd471b2c9207a3167a0c0 100644
+--- a/src/runtime/canvas_widget_state.zig
++++ b/src/runtime/canvas_widget_state.zig
+@@ -304,15 +304,29 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
+             // the verb still write through ahead of the record, and
+             // event_count/checkpoint ordinals only ever see the one
+             // surviving record (checkpoints fire at staging depth 0).
+-            if (self.options.session_recorder) |recorder| recorder.stageEvent(.{ .widget_accessibility_action = .{
+-                .window_id = window_id,
+-                .label = label,
+-                .id = action.id,
+-                .action = platformWidgetAccessibilityActionKindFromCanvas(action.action),
+-                .text = action.text,
+-                .selection = if (action.selection) |selection| .{ .start = selection.anchor, .end = selection.focus } else null,
+-            } });
+-            defer if (self.options.session_recorder) |recorder| recorder.commitEvent();
++            var session_event_staged = false;
++            if (self.options.session_recorder) |recorder| {
++                const writes_secure_text = switch (action.action) {
++                    .set_text, .set_composition, .commit_composition => runtime_api.isSecureCanvasWidgetId(self.options.secure_canvas_widget_ids, action.id),
++                    else => false,
++                };
++                if (writes_secure_text) {
++                    recorder.rejectSecureInput();
++                } else {
++                    recorder.stageEvent(.{ .widget_accessibility_action = .{
++                        .window_id = window_id,
++                        .label = label,
++                        .id = action.id,
++                        .action = platformWidgetAccessibilityActionKindFromCanvas(action.action),
++                        .text = action.text,
++                        .selection = if (action.selection) |selection| .{ .start = selection.anchor, .end = selection.focus } else null,
++                    } });
++                    session_event_staged = true;
++                }
++            }
++            defer if (self.options.session_recorder) |recorder| {
++                if (session_event_staged) recorder.commitEvent();
++            };
+ 
+             // Every assistive action rides the SAME machinery the
+             // automation widget verbs use — the key-driven activation for
+@@ -999,6 +1013,15 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
+             return canvas.textGeometryForWidget(node.widget, self.views[index].widget_tokens);
+         }
+ 
++        pub fn canvasWidgetTextEditState(self: *const Runtime, window_id: platform.WindowId, label: []const u8, id: canvas.ObjectId) anyerror!canvas.TextEditState {
++            try validateRuntimeViewParent(self, window_id);
++            try validateViewLabel(label);
++            if (id == 0) return error.InvalidCommand;
++            const index = runtimeFindViewIndex(self, window_id, label) orelse return error.ViewNotFound;
++            if (self.views[index].kind != .gpu_surface) return error.InvalidViewOptions;
++            return self.views[index].canvasWidgetTextEditState(id) orelse error.InvalidCommand;
++        }
++
+         pub fn editCanvasWidgetText(self: *Runtime, window_id: platform.WindowId, label: []const u8, id: canvas.ObjectId, edit: canvas.TextInputEvent) anyerror!platform.ViewInfo {
+             try validateRuntimeViewParent(self, window_id);
+             try validateViewLabel(label);
+@@ -1007,6 +1030,14 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
+             if (self.views[index].kind != .gpu_surface) return error.InvalidViewOptions;
+             if (!self.views[index].canEditCanvasWidgetText(id)) return error.InvalidCommand;
+ 
++            if (self.options.session_recorder) |recorder| {
++                const writes_secure_text = switch (edit) {
++                    .insert_text, .set_composition, .commit_composition => runtime_api.isSecureCanvasWidgetId(self.options.secure_canvas_widget_ids, id),
++                    else => false,
++                };
++                if (writes_secure_text) recorder.rejectSecureInput();
++            }
++
+             // Direct runtime edits sanitize like every other insertion
+             // source (the keyboard choke point's rule): a single-line
+             // field's editor never accepts a line break, whoever writes.
+diff --git a/src/runtime/core.zig b/src/runtime/core.zig
+index e7803998ef96b908a553f85f9224249466975a88..c6c9e30b4265e47182dd5bc09cba3ed8f6be894d 100644
+--- a/src/runtime/core.zig
++++ b/src/runtime/core.zig
+@@ -970,6 +970,7 @@ pub const Runtime = struct {
+     pub const setCanvasWidgetDesignTokens = CanvasWidgetStateMethods.setCanvasWidgetDesignTokens;
+     pub const canvasWidgetDesignTokens = CanvasWidgetStateMethods.canvasWidgetDesignTokens;
+     pub const canvasWidgetTextGeometry = CanvasWidgetStateMethods.canvasWidgetTextGeometry;
++    pub const canvasWidgetTextEditState = CanvasWidgetStateMethods.canvasWidgetTextEditState;
+     pub const editCanvasWidgetText = CanvasWidgetStateMethods.editCanvasWidgetText;
+ 
+     const CanvasWidgetDisplayMethods = runtime_canvas_widget_display.RuntimeCanvasWidgetDisplay(Runtime);
+diff --git a/src/runtime/effects.zig b/src/runtime/effects.zig
+index b48ba7cb0ee6711f805c1e7264cb0d8ef9ac502b..d7943254dda39fe1f4b5fae53df1344267f3db46 100644
+--- a/src/runtime/effects.zig
++++ b/src/runtime/effects.zig
+@@ -4836,6 +4836,16 @@ pub fn Effects(comptime Msg: type) type {
+         /// go through `wake_services`, the atomically published
+         /// mirror, never this plain field.
+         services: ?*const platform.PlatformServices = null,
++        /// App-owned host workers use this direct, atomically published
++        /// binding through `requestWake`. Unlike channel producers, those
++        /// workers are lifecycle-bound to the app: `host_deinit` must stop
++        /// and join them before Effects teardown clears this pointer. That
++        /// join keeps the Runtime-owned PlatformServices table alive for
++        /// every load and call without allocating a process-lived snapshot.
++        host_wake_services: std.atomic.Value(?*const platform.PlatformServices) = std.atomic.Value(?*const platform.PlatformServices).init(null),
++        /// Loop-thread declaration that the UiApp has a host-poll hook and
++        /// therefore needs the cross-thread wake binding published at bind.
++        host_wake_enabled: bool = false,
+         /// The cross-thread mirror of `services` — pointing at the
+         /// SNAPSHOT the bind generation copies into process-lifetime
+         /// storage, never at the caller's (Runtime-owned) value: a wake
+@@ -5921,6 +5931,8 @@ pub fn Effects(comptime Msg: type) type {
+             // teardown), and a severed channel already answers every
+             // transport command inert through its existing no-services
+             // paths instead of dereferencing freed memory.
++            self.host_wake_services.store(null, .release);
++            self.host_wake_enabled = false;
+             self.services = null;
+             self.wake_services.store(null, .release);
+             // Dispose this bind generation's services snapshot (the
+@@ -6034,6 +6046,7 @@ pub fn Effects(comptime Msg: type) type {
+         pub fn bindServices(self: *Self, services: *const platform.PlatformServices) void {
+             if (self.services != null) return;
+             self.services = services;
++            if (self.host_wake_enabled) self.host_wake_services.store(services, .release);
+             if (self.host_calls) |binding| {
+                 if (binding.bind_services_fn) |bind_fn| bind_fn(binding.context, services);
+             }
+@@ -6165,6 +6178,25 @@ pub fn Effects(comptime Msg: type) type {
+             if (self.hasPending()) self.wakeHost();
+         }
+ 
++        /// Publish the app-owned host-worker wake binding. Loop-thread only;
++        /// UiApp calls this after binding services whenever `host_poll` is
++        /// installed. The host's exactly-once deinit must stop and join every
++        /// worker before Effects teardown, so no worker can outlive the
++        /// Runtime-owned service table published here.
++        pub fn enableHostWake(self: *Self) void {
++            self.host_wake_enabled = true;
++            if (self.services) |services| self.host_wake_services.store(services, .release);
++        }
++
++        /// Ask the platform loop to deliver an effects wake from an app-owned
++        /// worker thread. The call is bounded by PlatformServices.wake's
++        /// enqueue-only contract. It fails closed before services are bound
++        /// and after the host has been torn down.
++        pub fn requestWake(self: *Self) anyerror!void {
++            const services = self.host_wake_services.load(.acquire) orelse return error.HostWakeUnavailable;
++            return services.wake();
++        }
++
+         /// Whether any channel occupancy currently has an armed wake
+         /// header — a producer that could consume the published
+         /// services snapshot. Replay parks never arm one (their
+diff --git a/src/runtime/flow.zig b/src/runtime/flow.zig
+index 3feeaf9fc18d17fcb33f9ef4bdc911dcbe187788..5ca9a850d6e52668ab7aabd7c1f155b117e7b76c 100644
+--- a/src/runtime/flow.zig
++++ b/src/runtime/flow.zig
+@@ -208,9 +208,17 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
+             // dispatching), and nested dispatches (automation commands
+             // inside frame_requested) commit innermost-first. One state
+             // fingerprint checkpoint follows each published frame.
+-            if (self.options.session_recorder) |recorder| recorder.stageEvent(event_value);
++            var session_event_staged = false;
++            if (self.options.session_recorder) |recorder| {
++                if (eventTargetsSecureCanvasInput(self, &event_value)) {
++                    recorder.rejectSecureInput();
++                } else {
++                    recorder.stageEvent(event_value);
++                    session_event_staged = true;
++                }
++            }
+             defer if (self.options.session_recorder) |recorder| {
+-                recorder.commitEvent();
++                if (session_event_staged) recorder.commitEvent();
+                 if (recorder.wantsCheckpoint(self.frame_index)) {
+                     recorder.recordCheckpoint(self.frame_index, self.sessionStateFingerprint());
+                 }
+@@ -502,6 +510,32 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
+             }
+         }
+ 
++        fn eventTargetsSecureCanvasInput(self: *const Runtime, event_value: *const platform.Event) bool {
++            if (event_value.* == .gpu_surface_input) {
++                const input = &event_value.gpu_surface_input;
++                switch (input.kind) {
++                    .text_input, .ime_set_composition, .ime_commit_composition => {},
++                    else => return false,
++                }
++                var index: usize = 0;
++                while (index < self.view_count) : (index += 1) {
++                    const view = &self.views[index];
++                    if (!view.open or view.window_id != input.window_id or !std.mem.eql(u8, view.label, input.label)) continue;
++                    return runtime_api.isSecureCanvasWidgetId(self.options.secure_canvas_widget_ids, view.canvas_widget_focused_id);
++                }
++                return false;
++            }
++            if (event_value.* == .widget_accessibility_action) {
++                const action = &event_value.widget_accessibility_action;
++                switch (action.action) {
++                    .set_text, .set_composition, .commit_composition =>
++                    return runtime_api.isSecureCanvasWidgetId(self.options.secure_canvas_widget_ids, action.id),
++                    else => return false,
++                }
++            }
++            return false;
++        }
++
+         pub fn dispatchEvent(self: *Runtime, app: App, event_value: Event) anyerror!void {
+             const event_fields = [_]trace.Field{trace.string("event", event_value.name())};
+             log(self, "runtime.event", null, &event_fields);
+diff --git a/src/runtime/session_record.zig b/src/runtime/session_record.zig
+index cf45a2af61de0de883a3617fbd6fa6531ba379c3..2f5e2c19c541e4331ef7754684ae4078d7c73346 100644
+--- a/src/runtime/session_record.zig
++++ b/src/runtime/session_record.zig
+@@ -166,6 +166,14 @@ pub const SessionRecorder = struct {
+         self.depth += 1;
+     }
+ 
++    /// Secure input cannot be replayed faithfully without persisting the
++    /// credential bytes. Stop and deliberately leave the journal unsealed so
++    /// replay refuses it instead of presenting a redacted event as success.
++    pub fn rejectSecureInput(self: *SessionRecorder) void {
++        if (!self.began or self.failed or self.finished) return;
++        self.fail("secure input cannot be recorded or replayed");
++    }
++
+     /// Append the innermost staged event record. Call exactly once per
+     /// successful `stageEvent`, on dispatch exit.
+     pub fn commitEvent(self: *SessionRecorder) void {
+diff --git a/src/runtime/session_tests.zig b/src/runtime/session_tests.zig
+index 706631cd77381f4841ac38133cbe48f0c7aee875..dca9d8f7aafe596221e9b5a583442b180d5696b6 100644
+--- a/src/runtime/session_tests.zig
++++ b/src/runtime/session_tests.zig
+@@ -843,6 +843,49 @@ const DirectVerbSession = struct {
+     }
+ };
+ 
++test "secure canvas text input fails recording closed without blocking the live edit" {
++    const gpa = std.testing.allocator;
++    const buffer = try std.heap.page_allocator.create(JournalBuffer);
++    defer std.heap.page_allocator.destroy(buffer);
++    buffer.len = 0;
++
++    const session = try DirectVerbSession.start(gpa, buffer);
++    defer session.destroy(gpa);
++    session.harness.runtime.options.secure_canvas_widget_ids = &.{session.search_id};
++
++    const sensitive_value = "sensitive-input-value";
++    try session.harness.runtime.dispatchPlatformEvent(session.app, .{ .widget_accessibility_action = .{
++        .window_id = 1,
++        .label = canvas_label,
++        .id = session.search_id,
++        .action = .set_text,
++        .text = sensitive_value,
++    } });
++
++    try std.testing.expectEqualStrings(sensitive_value, session.app_state.model.queryText());
++    try std.testing.expect(session.recorder.failed);
++    try std.testing.expect(std.mem.indexOf(u8, buffer.journalBytes(), sensitive_value) == null);
++}
++
++test "secure direct canvas text edits fail recording closed after the retained edit" {
++    const gpa = std.testing.allocator;
++    const buffer = try std.heap.page_allocator.create(JournalBuffer);
++    defer std.heap.page_allocator.destroy(buffer);
++    buffer.len = 0;
++
++    const session = try DirectVerbSession.start(gpa, buffer);
++    defer session.destroy(gpa);
++    session.harness.runtime.options.secure_canvas_widget_ids = &.{session.search_id};
++
++    const sensitive_value = "direct-sensitive-input";
++    _ = try session.harness.runtime.editCanvasWidgetText(1, canvas_label, session.search_id, .{ .insert_text = sensitive_value });
++
++    const retained = try session.harness.runtime.canvasWidgetTextEditState(1, canvas_label, session.search_id);
++    try std.testing.expect(std.mem.endsWith(u8, retained.text, sensitive_value));
++    try std.testing.expect(session.recorder.failed);
++    try std.testing.expect(std.mem.indexOf(u8, buffer.journalBytes(), sensitive_value) == null);
++}
++
+ /// The direct-verb journal must carry the AX action records and NONE of
+ /// their synthesized children — a child record is exactly the stray
+ /// input that replays against the wrong focus.
+diff --git a/src/runtime/ui_app.zig b/src/runtime/ui_app.zig
+index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da9089c244 100644
+--- a/src/runtime/ui_app.zig
++++ b/src/runtime/ui_app.zig
+@@ -587,6 +587,14 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             /// effects; `on_frame` remains the per-frame hook for frame
+             /// diagnostics and presented-frame reactions.
+             init_fx: ?*const fn (model: *ModelT, fx: *Effects) void = null,
++            /// Loop-thread hook invoked before an effects wake drains. A thin
++            /// native host uses this to feed worker completions through
++            /// `Effects.feedHostResult`; it never receives Model or Msg.
++            host_poll: ?*const fn (effects: *Effects) void = null,
++            /// Exactly-once host shutdown hook. It must stop and join every
++            /// worker that may call `Effects.requestWake` before returning;
++            /// the wake binding is revoked immediately afterwards.
++            host_deinit: ?*const fn () void = null,
+             /// Hand-written or comptime-compiled view
+             /// (`canvas.CompiledMarkupView(Model, Msg, source).build` slots
+             /// in directly). At least one of `view` and `markup` must be
+@@ -595,6 +603,10 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             /// which point the interpreter takes over (compiled view for
+             /// release, hot reload in dev).
+             view: ?*const fn (ui: *Ui, model: *const ModelT) Ui.Node = null,
++            /// View variant for stateless width-dependent composition. The
++            /// runtime passes the current logical canvas size on every build,
++            /// including resizes; it takes precedence over `view` when set.
++            view_viewport: ?*const fn (ui: *Ui, model: *const ModelT, viewport: geometry.SizeF) Ui.Node = null,
+             /// Runtime-parsed markup view. Requires
+             /// `UiAppFeatures.runtime_markup` (the default).
+             markup: ?MarkupOptions = null,
+@@ -610,6 +622,23 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             /// keyboard-focus signal for custom canvas chrome whose
+             /// pixels live outside the widget focus register.
+             on_lifecycle: ?*const fn (event: core.LifecycleEvent) ?MsgT = null,
++            /// App-local native surface key seam. It runs after the focused
++            /// widget's ordinary bound handler and before structural key
++            /// consumption. Returning null preserves stock widget handling.
++            surface_key: ?*const fn (
++                tree: *const Ui.Tree,
++                target: canvas.WidgetFocusTarget,
++                keyboard: canvas.WidgetKeyboardEvent,
++            ) ?MsgT = null,
++            /// App-local native surface text-edit seam. The retained editor
++            /// has already applied `edit`; `post_state` is the exact retained
++            /// value. Returning a message claims the edit before `on_input`.
++            surface_text_edit: ?*const fn (
++                tree: *const Ui.Tree,
++                target_id: canvas.ObjectId,
++                edit: canvas.TextInputEvent,
++                post_state: ?canvas.TextEditState,
++            ) ?MsgT = null,
+             /// Model-driven selection for declared platform chrome
+             /// (`scene.chrome.tabs`): returns the id of the tab the
+             /// model currently selects (one of the declared tab ids, or
+@@ -968,6 +997,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+         /// Exactly-once guard for `Options.init_fx`, independent of
+         /// `installed` so a failed install rebuild cannot rerun it.
+         init_fx_ran: bool = false,
++        host_deinit_ran: bool = false,
+         /// Last chrome overlay geometry delivered through `on_chrome`,
+         /// so resize-driven re-queries only dispatch on actual change
+         /// (fullscreen transitions flip it; ordinary resizes do not).
+@@ -1429,8 +1459,9 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+         }
+ 
+         fn assertOptions(options: Options) void {
+-            std.debug.assert(options.view != null or options.markup != null);
++            std.debug.assert(options.view != null or options.view_viewport != null or options.markup != null);
+             std.debug.assert((options.update != null) != (options.update_fx != null));
++            std.debug.assert(options.host_poll == null or options.host_deinit != null);
+             // Declared windows need the per-window view to build them.
+             std.debug.assert(options.windows_fn == null or options.window_view != null);
+             std.debug.assert(options.theme_fn == null or options.theme_state_fn == null);
+@@ -1445,6 +1476,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             // `stopFn` — effects.deinit is idempotent and severed its
+             // services binding there, so this second call frees app-side
+             // memory only and never touches the dead platform.
++            self.deinitHost();
+             self.effects.deinit();
+             self.terminal_sessions.deinit();
+             self.arenas[0].deinit();
+@@ -1469,6 +1501,12 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             self.pixel_buffer_window_id = null;
+         }
+ 
++        fn deinitHost(self: *Self) void {
++            if (self.host_deinit_ran) return;
++            self.host_deinit_ran = true;
++            if (self.options.host_deinit) |deinit_fn| deinit_fn();
++        }
++
+         pub fn app(self: *Self) App {
+             return .{
+                 .context = self,
+@@ -1494,6 +1532,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+         fn stopFn(context: *anyopaque, runtime: *Runtime) anyerror!void {
+             _ = runtime;
+             const self: *Self = @ptrCast(@alignCast(context));
++            self.deinitHost();
+             self.effects.deinit();
+         }
+ 
+@@ -1503,6 +1542,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+         /// recorded — the recorder's result journal.
+         fn bindEffectsChannel(self: *Self, runtime: *Runtime) void {
+             self.effects.bindServices(&runtime.options.platform.services);
++            if (self.options.host_poll != null) self.effects.enableHostWake();
+             self.effects.bindEnviron(runtime.options.environ);
+             if (runtime.options.record_store) |binding| {
+                 self.effects.bindRecordStore(binding);
+@@ -3377,7 +3417,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                 // A markup-only app parses its embedded source on the first
+                 // build; with both `view` and `markup` set, the compiled
+                 // view renders until the watch loads a changed source.
+-                if (self.markup_view == null and self.options.view == null) {
++                if (self.markup_view == null and self.options.view == null and self.options.view_viewport == null) {
+                     try self.reloadMarkup(self.options.markup.?.source);
+                 }
+                 if (self.markup_view) |*view| {
+@@ -3394,8 +3434,8 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                     };
+                 }
+             }
+-            const view = self.options.view.?;
+-            return view(ui, &self.model);
++            if (self.options.view_viewport) |view| return view(ui, &self.model, self.canvas_size);
++            return self.options.view.?(ui, &self.model);
+         }
+ 
+         /// Parse and activate a markup source (the reload seam: hot reload
+@@ -3582,7 +3622,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                 // be computed the way the poll computes it — over the whole
+                 // resolved import closure — or the first poll would flag a
+                 // phantom change.
+-                if (self.options.view != null and self.markup_source_hash == 0) {
++                if ((self.options.view != null or self.options.view_viewport != null) and self.markup_source_hash == 0) {
+                     self.markup_source_hash = self.embeddedMarkupClosureHash(markup_options);
+                 }
+             }
+@@ -4377,7 +4417,10 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                 } else if (self.installed) {
+                     try self.rebuildVideoChrome(runtime);
+                 },
+-                .effects_wake => try self.drainEffects(runtime),
++                .effects_wake => {
++                    if (self.options.host_poll) |poll_fn| poll_fn(&self.effects);
++                    try self.drainEffects(runtime);
++                },
+                 .files_dropped => |drop| {
+                     const map = self.options.on_drop orelse return;
+                     if (map(drop)) |msg| try self.dispatch(runtime, drop.window_id, msg);
+@@ -4528,7 +4571,14 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                 return self.handleWindowSlotFrame(runtime, frame_event);
+             }
+             // Host-pumped embeds deliver no `.wake`; drain pending effect
+-            // results with the frame tick so this frame presents them.
++            // results with the frame tick so this frame presents them. Poll
++            // first so the initial frame establishes the worker wake binding
++            // and every later frame can adopt completions even on an embed
++            // whose host never emits standalone wake events.
++            if (self.options.host_poll) |poll_fn| {
++                self.bindEffectsChannel(runtime);
++                poll_fn(&self.effects);
++            }
+             try self.drainEffects(runtime);
+             self.canvas_window_id = frame_event.window_id;
+             self.frame_timestamp_ns = frame_event.timestamp_ns;
+@@ -5063,7 +5113,14 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+             // source-owned buffer stays in lockstep too.
+             if (pointer_event.edit) |edit| {
+                 if (pointer_event.target) |edit_target| {
+-                    if (tree.msgForTextEdit(edit_target.id, edit)) |msg| {
++                    const post_state = runtime.canvasWidgetTextEditState(pointer_event.window_id, pointer_event.view_label, edit_target.id) catch null;
++                    const native_msg = if (self.options.surface_text_edit) |map|
++                        map(tree, edit_target.id, edit, post_state)
++                    else
++                        null;
++                    if (native_msg) |msg| {
++                        try self.dispatch(runtime, pointer_event.window_id, msg);
++                    } else if (tree.msgForTextEdit(edit_target.id, edit)) |msg| {
+                         try self.dispatch(runtime, pointer_event.window_id, msg);
+                     }
+                 }
+@@ -5867,10 +5924,25 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
+                         }
+                     }
+                 }
++                if (keyboard_event.keyboard.edit) |edit| {
++                    const post_state = runtime.canvasWidgetTextEditState(keyboard_event.window_id, keyboard_event.view_label, target.id) catch null;
++                    if (self.options.surface_text_edit) |map| {
++                        if (map(tree, target.id, edit, post_state)) |msg| {
++                            try self.dispatch(runtime, keyboard_event.window_id, msg);
++                            return;
++                        }
++                    }
++                }
+                 if (tree.msgForKeyboard(target.id, keyboard_event.keyboard)) |msg| {
+                     try self.dispatch(runtime, keyboard_event.window_id, msg);
+                     return;
+                 }
++                if (self.options.surface_key) |map| {
++                    if (map(tree, target, keyboard_event.keyboard)) |msg| {
++                        try self.dispatch(runtime, keyboard_event.window_id, msg);
++                        return;
++                    }
++                }
+                 if (tree.findWidget(target.id)) |widget| {
+                     if (!widget.state.disabled) {
+                         // A focused BOUND terminal owns its keys the way
+diff --git a/src/runtime/ui_app_tests.zig b/src/runtime/ui_app_tests.zig
+index 864209051f5fbaf1e01e12d494cc108a1276efaa..c95cad281113937d5328869e503ba0714fc6425f 100644
+--- a/src/runtime/ui_app_tests.zig
++++ b/src/runtime/ui_app_tests.zig
+@@ -38,6 +38,12 @@ fn counterView(ui: *CounterApp.Ui, model: *const CounterModel) CounterApp.Ui.Nod
+     });
+ }
+ 
++var counter_viewport_seen: geometry.SizeF = .{};
++fn counterViewportView(ui: *CounterApp.Ui, model: *const CounterModel, viewport: geometry.SizeF) CounterApp.Ui.Node {
++    counter_viewport_seen = viewport;
++    return counterView(ui, model);
++}
++
+ fn counterCommand(name: []const u8) ?CounterMsg {
+     if (std.mem.eql(u8, name, "counter.reset")) return .reset;
+     return null;
+@@ -7932,3 +7938,128 @@ test "a primary drag released outside the view retires containment and its proof
+     try std.testing.expectEqual(@as(usize, 0), harness.runtime.views[0].canvas_widget_hover_msg_chain_len);
+     try std.testing.expect(!harness.runtime.views[0].canvas_widget_hover_pointer_live);
+ }
++
++var counter_host_deinit_calls: u32 = 0;
++var counter_host_poll_calls: u32 = 0;
++fn counterHostDeinit() void {
++    counter_host_deinit_calls += 1;
++}
++
++fn counterHostPoll(effects: *CounterApp.Effects) void {
++    _ = effects;
++    counter_host_poll_calls += 1;
++}
++
++const CounterHostWakeThread = struct {
++    fn run(effects: *CounterApp.Effects) void {
++        effects.requestWake() catch unreachable;
++    }
++};
++
++test "ui app host worker wake reaches host poll and revokes at teardown" {
++    counter_host_poll_calls = 0;
++
++    const harness = try core.TestHarness().create(std.testing.allocator, .{ .size = geometry.SizeF.init(400, 300) });
++    defer harness.destroy(std.testing.allocator);
++    harness.null_platform.gpu_surfaces = true;
++
++    var options = counterOptions();
++    options.host_poll = counterHostPoll;
++    options.host_deinit = counterHostDeinit;
++    const app_state = try std.testing.allocator.create(CounterApp);
++    defer std.testing.allocator.destroy(app_state);
++    app_state.* = CounterApp.init(std.heap.page_allocator, .{}, options);
++    var app_state_needs_deinit = true;
++    defer if (app_state_needs_deinit) app_state.deinit();
++    const app = app_state.app();
++    try harness.start(app);
++    try harness.runtime.dispatchPlatformEvent(app, .{ .gpu_surface_frame = .{
++        .label = canvas_label,
++        .size = geometry.SizeF.init(400, 300),
++        .scale_factor = 1,
++        .frame_index = 1,
++        .timestamp_ns = 1_000_000,
++        .nonblank = true,
++    } });
++    try std.testing.expectEqual(@as(u32, 1), counter_host_poll_calls);
++
++    var worker = try std.Thread.spawn(.{}, CounterHostWakeThread.run, .{&app_state.effects});
++    worker.join();
++    try std.testing.expectEqual(@as(usize, 1), harness.null_platform.pendingWakeCount());
++    try harness.runtime.dispatchPlatformEvent(app, harness.null_platform.takeWake().?);
++    try std.testing.expectEqual(@as(u32, 2), counter_host_poll_calls);
++
++    try app.stop(&harness.runtime);
++    try std.testing.expectError(error.HostWakeUnavailable, app_state.effects.requestWake());
++    app_state.deinit();
++    app_state_needs_deinit = false;
++}
++
++test "ui app host deinit runs exactly once across stop and owner teardown" {
++    counter_host_deinit_calls = 0;
++
++    const harness = try core.TestHarness().create(std.testing.allocator, .{ .size = geometry.SizeF.init(400, 300) });
++    defer harness.destroy(std.testing.allocator);
++    harness.null_platform.gpu_surfaces = true;
++
++    var options = counterOptions();
++    options.host_deinit = counterHostDeinit;
++    const app_state = try std.testing.allocator.create(CounterApp);
++    defer std.testing.allocator.destroy(app_state);
++    app_state.* = CounterApp.init(std.heap.page_allocator, .{}, options);
++    var app_state_needs_deinit = true;
++    defer if (app_state_needs_deinit) app_state.deinit();
++    const app = app_state.app();
++    try harness.start(app);
++
++    // The runtime stop hook owns the first shutdown transition.
++    try app.stop(&harness.runtime);
++    try std.testing.expectEqual(@as(u32, 1), counter_host_deinit_calls);
++
++    // A repeated stop and the later owner teardown must both remain
++    // idempotent: host workers cannot be joined or freed twice.
++    try app.stop(&harness.runtime);
++    try std.testing.expectEqual(@as(u32, 1), counter_host_deinit_calls);
++    app_state.deinit();
++    app_state_needs_deinit = false;
++    try std.testing.expectEqual(@as(u32, 1), counter_host_deinit_calls);
++}
++
++test "ui app host deinit runs once on owner-only teardown" {
++    counter_host_deinit_calls = 0;
++
++    var options = counterOptions();
++    options.host_deinit = counterHostDeinit;
++    var app_state = CounterApp.init(std.heap.page_allocator, .{}, options);
++    app_state.deinit();
++
++    try std.testing.expectEqual(@as(u32, 1), counter_host_deinit_calls);
++}
++
++test "ui app viewport view receives the current logical canvas size" {
++    counter_viewport_seen = .{};
++
++    const harness = try core.TestHarness().create(std.testing.allocator, .{ .size = geometry.SizeF.init(400, 300) });
++    defer harness.destroy(std.testing.allocator);
++    harness.null_platform.gpu_surfaces = true;
++
++    var options = counterOptions();
++    options.view = null;
++    options.view_viewport = counterViewportView;
++    var app_state = CounterApp.init(std.heap.page_allocator, .{}, options);
++    defer app_state.deinit();
++    const app = app_state.app();
++    try harness.start(app);
++
++    try harness.runtime.dispatchPlatformEvent(app, .{ .gpu_surface_frame = .{
++        .label = canvas_label,
++        .size = geometry.SizeF.init(400, 300),
++        .scale_factor = 1,
++        .frame_index = 1,
++        .timestamp_ns = 1,
++        .nonblank = true,
++    } });
++
++    try std.testing.expectEqual(@as(f32, 400), counter_viewport_seen.width);
++    try std.testing.expectEqual(@as(f32, 300), counter_viewport_seen.height);
++}
+diff --git a/src/runtime/view.zig b/src/runtime/view.zig
+index 795bde03eaaffe2dc766a7ce0ef0a70cb986a5ea..81c25d313a262f9cbfb131fbb103945b2431378b 100644
+--- a/src/runtime/view.zig
++++ b/src/runtime/view.zig
+@@ -844,6 +844,7 @@ pub const RuntimeView = struct {
+     pub const clearCanvasWidgetTextVerticalGoal = CanvasWidgetTextMethods.clearCanvasWidgetTextVerticalGoal;
+     pub const canEditCanvasWidgetText = CanvasWidgetTextMethods.canEditCanvasWidgetText;
+     pub const ensureCanvasWidgetFocusedTextCaret = CanvasWidgetTextMethods.ensureCanvasWidgetFocusedTextCaret;
++    pub const canvasWidgetTextEditState = CanvasWidgetTextMethods.canvasWidgetTextEditState;
+     pub const applyCanvasWidgetTextPointer = CanvasWidgetTextMethods.applyCanvasWidgetTextPointer;
+     pub const clearCanvasWidgetStaticTextSelection = CanvasWidgetTextMethods.clearCanvasWidgetStaticTextSelection;
+     pub const canvasWidgetCopyText = CanvasWidgetTextMethods.canvasWidgetCopyText;
+diff --git a/src/runtime/view_widget_text.zig b/src/runtime/view_widget_text.zig
+index 3ae88fc24e2f3441aa1063abc9cca0fdb1e879aa..daf8d6fe803620a36b64884bfe0c698192af7388 100644
+--- a/src/runtime/view_widget_text.zig
++++ b/src/runtime/view_widget_text.zig
+@@ -978,6 +978,17 @@ pub fn RuntimeViewCanvasWidgetText(comptime RuntimeView: type) type {
+             return true;
+         }
+ 
++        pub fn canvasWidgetTextEditState(self: *const RuntimeView, id: canvas.ObjectId) ?canvas.TextEditState {
++            const index = self.canvasWidgetNodeIndexById(id) orelse return null;
++            const widget = self.widget_layout_nodes[index].widget;
++            if (!canvasWidgetEditableTextKind(widget.kind) or widget.state.disabled) return null;
++            return .{
++                .text = widget.text,
++                .selection = widget.text_selection orelse canvas.TextSelection.collapsed(widget.text.len),
++                .composition = widget.text_composition,
++            };
++        }
++
+         pub fn applyCanvasWidgetTextPointer(
+             self: *RuntimeView,
+             target_id: canvas.ObjectId,

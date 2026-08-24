@@ -15,13 +15,13 @@ The repository has two kinds of foundation content:
    - the shortcut-capture contract, with system implementations on macOS and
      Windows and explicit unsupported results on Linux and Chromium-backed
      hosts.
-2. Generic Native SDK 0.9.5 changes distributed as ordered patches:
-   - `native-sdk-0.9.5-runtime-foundation.patch` adds the optional thin native
+2. Generic Native SDK 0.10.0 changes distributed as ordered patches:
+   - `native-sdk-0.10.0-runtime-foundation.patch` adds the optional thin native
      host, viewport-aware composition, bounded surface input, secure recording
      refusal, retained text-edit after-state, worker wakeup, exactly-once host
      teardown, automation input pacing, and synchronized shortcut-capture names
      in the public TypeScript and bridge contracts;
-   - `native-sdk-0.9.5-compiler-tooling.patch` adds the Node stack budget,
+   - `native-sdk-0.10.0-compiler-tooling.patch` adds the Node stack budget,
      supported `DataView` use, and symbol-aware external-core `Bytes` folding.
 
 The patches do not contain application reducers, backend bindings, product
@@ -106,10 +106,10 @@ patched="$(dirname "$foundation")/native-ui-patched"
 git -C "$foundation" worktree add --detach "$patched" "$base"
 cd "$patched"
 
-git apply --check "$foundation/patches/native-sdk-0.9.5-runtime-foundation.patch"
-git apply "$foundation/patches/native-sdk-0.9.5-runtime-foundation.patch"
-git apply --check "$foundation/patches/native-sdk-0.9.5-compiler-tooling.patch"
-git apply "$foundation/patches/native-sdk-0.9.5-compiler-tooling.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
+git apply "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
+git apply "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
 ```
 
 The order is part of the distribution contract. A base-tree mismatch or patch
@@ -198,19 +198,20 @@ marked secure.
 The public artifacts dated August 24, 2026 have these hashes:
 
 - runtime foundation:
-  `fda6ab4bdf497829605aaa84f794a05ba3e34b3d07bee86e4e0768f4bd4f3b23`;
+  `99445c16bd7bc57f2a2d1de8fd978b33e91ffb4f2be3b18905de70ac62d6f67f`;
 - compiler/tooling:
-  `1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552`.
+  `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`.
 
 The final local gates reported:
 
-- TypeScript focused tests: 94 passed;
-- Native tooling: 200 passed;
-- runtime core: 688 passed, 12 skipped;
+- TypeScript package tests: 245 passed, including 94 focused
+  compiler/tooling tests;
+- Native tooling: 206 passed;
+- runtime core: 690 passed, 12 skipped;
 - UI shell: 176 passed;
-- full Zig suite: 662 of 662 build steps succeeded, 3514 tests passed, 15
+- full Zig suite: 665 of 665 build steps succeeded, 3533 tests passed, 15
   skipped;
-- two independent read-only reviews: PASS.
+- independent read-only review remains required before a release claim.
 
 These results prove the recorded artifact on the recorded host. They do not
 replace downstream application tests, real backend checks, signing, packaging,
@@ -238,14 +239,37 @@ A wire or journal change requires an explicit compatibility/migration contract
 and new replay evidence. Do not leave `journal_layout_changed` false when the
 journal actually changed.
 
+## Native SDK 0.10 Migration Notes
+
+The `0.9.5` to `0.10.0` upgrade keeps the foundation wire version at 8 and
+does not change the journal layout, but it has four migration-sensitive edges:
+
+1. ScriptC is exact-pinned at `0.0.35`. Reinstall `packages/core` dependencies
+   from the committed lockfile and regenerate external core contracts; do not
+   reuse a `0.0.33` compiler cache or generated facade.
+2. Manifest versions must use canonical numeric components. Values such as
+   `01.0.0`, `1.02.0`, and `1.0.03` are now rejected; migrate them to `1.0.0`,
+   `1.2.0`, and `1.0.3` before running `native check` or packaging.
+3. AppKit text runs now align by resolved-font ascent. macOS reference images
+   and text-baseline snapshots may change even when authored layout is
+   unchanged; review and regenerate those artifacts rather than accepting
+   blanket pixel drift.
+4. Native updates are now implemented for packaged macOS apps using the
+   system web engine. Enabling `updates` requires an HTTPS `feed_url` and a
+   valid base64 Ed25519 public key; Chromium-backed macOS apps must leave the
+   block disabled. Existing apps need no manifest change unless they opt in.
+
+The reserved `app.check-for-updates` command is host-owned. Do not route it
+through a TypeScript `commandMsg` or Zig `on_command` handler.
+
 ## Rollback
 
 For an uncommitted consumer worktree, reverse in the opposite order:
 
 ```bash
 foundation=/absolute/path/to/native-ui
-git apply --reverse "$foundation/patches/native-sdk-0.9.5-compiler-tooling.patch"
-git apply --reverse "$foundation/patches/native-sdk-0.9.5-runtime-foundation.patch"
+git apply --reverse "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
+git apply --reverse "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
 ```
 
 For an immutable integration, switch the consumer back to its recorded base or

@@ -3,7 +3,7 @@
 ## VibeUnion Foundation Layer
 
 This repository tracks a reusable cross-platform UI foundation on top of
-Native SDK 0.9.5. It keeps application state in the caller-owned TypeScript
+Native SDK 0.10.0. It keeps application state in the caller-owned TypeScript
 core and adds no second reducer, product store, browser runtime, or product
 backend authority.
 
@@ -16,13 +16,13 @@ The public foundation contains:
   lifecycle, focus ownership, one-shot capture, and the reserved `__capture__`
   command; macOS and Windows system engines implement it today, while Linux
   and Chromium-backed hosts report it unsupported;
-- [`patches/native-sdk-0.9.5-runtime-foundation.patch`](./patches/native-sdk-0.9.5-runtime-foundation.patch),
+- [`patches/native-sdk-0.10.0-runtime-foundation.patch`](./patches/native-sdk-0.10.0-runtime-foundation.patch),
   which adds a thin app-owned host extension, viewport-aware composition,
   bounded native surface input hooks, secure session-input handling, retained
   text-edit after-state, an atomically published host-worker wake seam,
   exactly-once host teardown, automation input pacing, and synchronized public
   TypeScript/bridge names for shortcut capture;
-- [`patches/native-sdk-0.9.5-compiler-tooling.patch`](./patches/native-sdk-0.9.5-compiler-tooling.patch),
+- [`patches/native-sdk-0.10.0-compiler-tooling.patch`](./patches/native-sdk-0.10.0-compiler-tooling.patch),
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.
 

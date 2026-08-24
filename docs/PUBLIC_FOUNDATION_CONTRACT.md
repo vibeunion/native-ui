@@ -2,7 +2,7 @@
 
 ## Goal
 
-Publish the reusable cross-platform UI surface and generic Native SDK 0.9.5
+Publish the reusable cross-platform UI surface and generic Native SDK 0.10.0
 patches without carrying application-specific state, runtime policy, backend
 bindings, replay fixtures, or private build paths.
 
@@ -56,7 +56,7 @@ bindings, replay fixtures, or private build paths.
 
 1. Every patch hash matches `patches/manifest.json`.
 2. Both patches apply cleanly, in order, to
-   `5a079b5f826deed7a4c179c5d645c651f976e234` and reverse cleanly.
+   `2961db6d4b469963dc6772afb69651e9d665cabc` and reverse cleanly.
 3. Patch additions contain no product environment prefixes, private paths,
    credential material, excluded feature ids, or wire-version edits.
 4. Focused TypeScript, runtime-core, UI-shell, tooling, validation,
@@ -69,19 +69,20 @@ bindings, replay fixtures, or private build paths.
 
 ## Published Evidence
 
-The August 24, 2026 foundation publication records:
+The August 24, 2026 foundation upgrade candidate records:
 
 - runtime patch SHA-256
-  `fda6ab4bdf497829605aaa84f794a05ba3e34b3d07bee86e4e0768f4bd4f3b23`;
+  `99445c16bd7bc57f2a2d1de8fd978b33e91ffb4f2be3b18905de70ac62d6f67f`;
 - compiler/tooling patch SHA-256
-  `1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552`;
+  `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`;
 - focused gates: the public package mirror and runtime TypeScript contract were
-  synchronized; TypeScript 94 passed, tooling 200 passed, runtime core 688
-  passed and 12 skipped, UI shell 176 passed, plus default/custom host builds
-  and the ownership/lifecycle negative compile gates;
-- complete Zig gate: 662 of 662 build steps succeeded, 3514 tests passed, and
+  synchronized; the TypeScript package suite passed 245 tests, including 94
+  focused compiler/tooling tests; tooling passed 206, runtime core passed 690
+  with 12 skipped, UI shell passed 176, plus default/custom host builds and
+  the ownership/lifecycle negative compile gates;
+- complete Zig gate: 665 of 665 build steps succeeded, 3533 tests passed, and
   15 skipped;
-- two independent read-only reviewer verdicts: PASS.
+- independent read-only reviewer verdicts remain required before publication.
 
 The custom-host fixture in this evidence targets macOS/Metal. The foundation
 API remains platform-neutral where the underlying Native SDK contract is
