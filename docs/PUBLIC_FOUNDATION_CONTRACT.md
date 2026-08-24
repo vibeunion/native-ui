@@ -64,6 +64,27 @@ bindings, replay fixtures, or private build paths.
 5. One writer and two independent read-only reviewers approve the final
    artifacts before push.
 
+## Published Evidence
+
+The August 24, 2026 foundation publication records:
+
+- runtime patch SHA-256
+  `0e7a644b43fc508710c4fe660cec4ad0e7606f1d6330a9e6fe2e40483c02b50e`;
+- compiler/tooling patch SHA-256
+  `1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552`;
+- focused gates: TypeScript 94 passed, tooling 200 passed, runtime core 688
+  passed and 12 skipped, UI shell 176 passed, plus default/custom host builds
+  and the ownership/lifecycle negative compile gates;
+- complete Zig gate: 662 of 662 build steps succeeded, 3514 tests passed, and
+  15 skipped;
+- two independent read-only reviewer verdicts: PASS.
+
+The custom-host fixture in this evidence targets macOS/Metal. The foundation
+API remains platform-neutral where the underlying Native SDK contract is
+platform-neutral, but a Windows or Linux custom-host release claim requires
+corresponding CI or real-host evidence. Operational instructions and rollback
+steps live in [`FOUNDATION_USAGE.md`](./FOUNDATION_USAGE.md).
+
 ## Risk And Rollback
 
 - Risk: high, because the runtime patch adds public extension seams and secure

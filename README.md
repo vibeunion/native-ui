@@ -25,6 +25,12 @@ The public foundation contains:
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.
 
+Start with the [`Foundation Layer Guide`](./docs/FOUNDATION_USAGE.md) for
+prerequisites, immutable pinning, ordered patch application, `ts_host.zig`
+integration, platform support boundaries, release evidence, upgrade procedure,
+and rollback. The normative ownership and acceptance rules remain in the
+[`Public Foundation Contract`](./docs/PUBLIC_FOUNDATION_CONTRACT.md).
+
 The patches apply in manifest order to the exact foundation revision recorded
 in [`patches/manifest.json`](./patches/manifest.json). Validate provenance,
 hashes, clean application, wire stability, and public-boundary scans with:
@@ -37,6 +43,12 @@ Add `--verify` for focused compiler/runtime tests or `--full` for the complete
 Zig suite. Product-specific replay fixtures, environment policy, screen
 capture prototypes, undeclared platform features, vendored compiler output,
 and journal-format migrations are intentionally excluded.
+
+UI-library parity is a platform-neutral API and ownership claim, not a claim
+that every OS backend has identical accessibility, text, IME, packaging, or
+custom-host evidence. See the guide and
+[`Platform Support`](https://native-sdk.dev/docs/platform-support) before
+making a platform release claim.
 
 **Native SDK is the complete toolkit for building native desktop applications.**
 
