@@ -14,9 +14,10 @@ The declarative shape is one element. Spawn a pty from your model (`fx.ptySpawn`
 
 <CodeToggle>
 
-```ts
+```typescript
 import { Cmd } from "@native-sdk/core";
 
+// Fragment: Model, Msg, and terminal come from the surrounding app.
 const shellKey = 1;
 
 export function view(model: Model) {
@@ -87,9 +88,10 @@ The pty key is ordinary model data — pick it like an effect key. Spawn the she
 
 <CodeToggle>
 
-```ts
+```typescript
 import { Cmd, asciiBytes } from "@native-sdk/core";
 
+// Fragment: Model, Msg, and feed come from the surrounding app.
 const shellKey = 1;
 
 export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {

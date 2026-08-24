@@ -368,9 +368,10 @@ The default TypeScript + Native markup recipe combines one app policy, two windo
 },
 ```
 
-```ts:src/core.ts
+```typescript
 import { Cmd } from "@native-sdk/core";
 
+// Fragment: Model and Msg come from the surrounding app core.
 export function commandMsg(name: string): Msg | null {
   if (name === "app.open") return { kind: "open_player" };
   if (name === "app.quit") return { kind: "quit" };
