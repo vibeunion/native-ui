@@ -1,5 +1,43 @@
 # Native SDK
 
+## VibeUnion Foundation Layer
+
+This repository tracks a reusable cross-platform UI foundation on top of
+Native SDK 0.9.5. It keeps application state in the caller-owned TypeScript
+core and adds no second reducer, product store, browser runtime, or product
+backend authority.
+
+The public foundation contains:
+
+- a machine-checked GPUI parity registry for all 42 public Zed UI modules and
+  all 57 public `gpui-component` UI modules pinned by
+  [`docs/GPUI_UI_LIBRARY_PARITY_CONTRACT.md`](./docs/GPUI_UI_LIBRARY_PARITY_CONTRACT.md);
+- the absorbed cross-platform shortcut-capture capability contract, including
+  lifecycle, focus ownership, one-shot capture, and the reserved `__capture__`
+  command; macOS and Windows system engines implement it today, while Linux
+  and Chromium-backed hosts report it unsupported;
+- [`patches/native-sdk-0.9.5-runtime-foundation.patch`](./patches/native-sdk-0.9.5-runtime-foundation.patch),
+  which adds a thin app-owned host extension, viewport-aware composition,
+  bounded native surface input hooks, secure session-input handling, retained
+  text-edit after-state, an atomically published host-worker wake seam,
+  exactly-once host teardown, and automation input pacing;
+- [`patches/native-sdk-0.9.5-compiler-tooling.patch`](./patches/native-sdk-0.9.5-compiler-tooling.patch),
+  which keeps compiler stack usage bounded for large cores, permits supported
+  `DataView` decoding, and hardens external-core staging.
+
+The patches apply in manifest order to the exact foundation revision recorded
+in [`patches/manifest.json`](./patches/manifest.json). Validate provenance,
+hashes, clean application, wire stability, and public-boundary scans with:
+
+```bash
+scripts/check-foundation-patches.sh
+```
+
+Add `--verify` for focused compiler/runtime tests or `--full` for the complete
+Zig suite. Product-specific replay fixtures, environment policy, screen
+capture prototypes, undeclared platform features, vendored compiler output,
+and journal-format migrations are intentionally excluded.
+
 **Native SDK is the complete toolkit for building native desktop applications.**
 
 Native SDK exists because expressive UI and native performance should not be competing goals. Developers often choose web-based runtimes because they offer freedom, speed and control over the product experience. But that freedom often comes with a heavy runtime. Native SDK keeps the expressive authoring model and replaces the runtime with native rendering.

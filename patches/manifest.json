@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-24",
+  "foundation": {
+    "repository": "git@github.com:vibeunion/native-ui.git",
+    "base_revision": "5a079b5f826deed7a4c179c5d645c651f976e234",
+    "base_tree": "228ab9ea6ca422f68b21dc9d80803d7494c9b6d7"
+  },
+  "upstream": {
+    "repository": "https://github.com/zuohuadong/native.git",
+    "version": "0.9.5",
+    "release_revision": "80d1c46d3632fee4ea7bc1d95300d04a2b6c5ae2",
+    "release_tree": "207630d9ae8dd3a58eb5535729f8c2720f6c1bc1"
+  },
+  "absorbed_revisions": [
+    {
+      "revision": "73e790867e3c86c54ca5c48d0d79dd464a277d90",
+      "scope": "cross-platform shortcut capture"
+    },
+    {
+      "revision": "5a079b5f826deed7a4c179c5d645c651f976e234",
+      "scope": "GPUI UI library parity registry"
+    }
+  ],
+  "patches": [
+    {
+      "order": 1,
+      "path": "native-sdk-0.9.5-runtime-foundation.patch",
+      "sha256": "0e7a644b43fc508710c4fe660cec4ad0e7606f1d6330a9e6fe2e40483c02b50e",
+      "scope": "runtime-foundation"
+    },
+    {
+      "order": 2,
+      "path": "native-sdk-0.9.5-compiler-tooling.patch",
+      "sha256": "1562078cdcc3a819f817e3711eb0ae2d746c63839793ce49e5273e956e286552",
+      "scope": "compiler-tooling"
+    }
+  ],
+  "wire_version": 8,
+  "journal_layout_changed": false
+}
