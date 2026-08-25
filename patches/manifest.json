@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-24",
+  "generated_at": "2026-08-25",
   "foundation": {
     "repository": "git@github.com:vibeunion/native-ui.git",
     "base_revision": "2961db6d4b469963dc6772afb69651e9d665cabc",
@@ -26,7 +26,7 @@
     {
       "order": 1,
       "path": "native-sdk-0.10.0-runtime-foundation.patch",
-      "sha256": "99445c16bd7bc57f2a2d1de8fd978b33e91ffb4f2be3b18905de70ac62d6f67f",
+      "sha256": "cf3c67309da60ff58e88268eca586d65b982faee013b3ef779d8f710e50a9569",
       "scope": "runtime-foundation"
     },
     {
@@ -58,8 +58,8 @@
       "id": "native-sdk-0.9.5-ui-foundation",
       "status": "compatibility-only",
       "path": "compat/native-sdk-0.9.5-ui-foundation.patch",
-      "sha256": "88ad6c62b60457adc5f62add0b466d543ac9fdd69dfaa7110622f52afa9a8bb3",
-      "scope": "ui-foundation",
+      "sha256": "ae6ff436ca23bb4933775e041747b91501fd67351a90e07d3fa32520d6772174",
+      "scope": "ui-foundation-and-ts-runner-policy",
       "base_revision": "5a079b5f826deed7a4c179c5d645c651f976e234",
       "base_tree": "228ab9ea6ca422f68b21dc9d80803d7494c9b6d7",
       "prerequisite_distribution_commit": "15fd8749de13480a34e9c5d68315c4321f984e78",

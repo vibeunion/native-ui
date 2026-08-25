@@ -37,7 +37,10 @@ bindings, replay fixtures, or private build paths.
    `shortcut_capture` and `shortcutCapture` callers.
 3. A runtime patch for thin host composition, viewport-aware views, surface
    input handoff, secure recording refusal, after-state access, exactly-once
-   host teardown, and automation input pacing.
+   host teardown, automation input pacing, and exact manifest-declared
+   built-in bridge policy propagation for generated TypeScript Core launchers.
+   An absent or empty command list remains disabled; app permissions alone do
+   not create bridge authority.
 4. A separate compiler/tooling patch for Node stack budget, supported
    `DataView` construction, and external-core import staging.
 
@@ -55,7 +58,7 @@ bindings, replay fixtures, or private build paths.
 ## Acceptance
 
 1. Every patch hash matches `patches/manifest.json`.
-2. Both patches apply cleanly, in order, to
+2. All three active patches apply cleanly, in order, to
    `2961db6d4b469963dc6772afb69651e9d665cabc` and reverse cleanly.
 3. Patch additions contain no product environment prefixes, private paths,
    credential material, excluded feature ids, or wire-version edits.
@@ -69,18 +72,23 @@ bindings, replay fixtures, or private build paths.
 
 ## Published Evidence
 
-The August 24, 2026 foundation upgrade candidate records:
+The August 24, 2026 foundation upgrade candidate records the prior runtime
+artifact. The August 25, 2026 TypeScript runner follow-up updates the active
+runtime patch and the compatibility-only 0.9.5 UI artifact; the active
+compiler/tooling and 0.10.0 UI patches remain unchanged:
 
 - runtime patch SHA-256
-  `99445c16bd7bc57f2a2d1de8fd978b33e91ffb4f2be3b18905de70ac62d6f67f`;
+  `cf3c67309da60ff58e88268eca586d65b982faee013b3ef779d8f710e50a9569`;
 - compiler/tooling patch SHA-256
   `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`;
-- focused gates: the public package mirror and runtime TypeScript contract were
+- focused gates: the app-runner target passes 3/3, including a manifest bridge
+  policy regression for absent, empty, and declared command lists; the public
+  package mirror and runtime TypeScript contract were
   synchronized; the TypeScript package suite passed 245 tests, including 94
   focused compiler/tooling tests; tooling passed 206, runtime core passed 690
   with 12 skipped, UI shell passed 176, plus default/custom host builds and
   the ownership/lifecycle negative compile gates;
-- complete Zig gate: 665 of 665 build steps succeeded, 3533 tests passed, and
+- complete Zig gate: 665 of 665 build steps succeeded, 3537 tests passed, and
   15 skipped;
 - independent read-only reviewer verdicts remain required before publication.
 

@@ -1,5 +1,5 @@
 diff --git a/build.zig b/build.zig
-index 7f4272216dad26af91bb49294875e77893c5dedd..d6c0417c794722b96f567bf14bb0011fb42167bc 100644
+index 7f42722..d6c0417 100644
 --- a/build.zig
 +++ b/build.zig
 @@ -1778,6 +1778,7 @@ pub fn build(b: *std.Build) void {
@@ -11,7 +11,7 @@ index 7f4272216dad26af91bb49294875e77893c5dedd..d6c0417c794722b96f567bf14bb0011f
      };
      for (native_example_shard_steps) |shard_step| {
 diff --git a/build/app.zig b/build/app.zig
-index 0ec7a26301620f571fdf140aa6d5e7912bb804c6..c39d6fc4d6b88bc2b3dca5882bd3f5007f2e0b72 100644
+index 0ec7a26..c39d6fc 100644
 --- a/build/app.zig
 +++ b/build/app.zig
 @@ -365,6 +365,7 @@ const core_compiler_teaching =
@@ -40,7 +40,7 @@ index 0ec7a26301620f571fdf140aa6d5e7912bb804c6..c39d6fc4d6b88bc2b3dca5882bd3f500
 +        .host_root = host_root,
      };
  }
- 
+
 @@ -2066,6 +2072,13 @@ fn appModule(b: *std.Build, dep: *std.Build.Dependency, target: std.Build.Resolv
          // The in-process service archive links beside it (distinct symbol
          // prefix; its runtime internals are localized).
@@ -57,7 +57,7 @@ index 0ec7a26301620f571fdf140aa6d5e7912bb804c6..c39d6fc4d6b88bc2b3dca5882bd3f500
          // `store` and the relational `sqlite` tier share this exact object.
 diff --git a/examples/ts-host-foundation/app.zon b/examples/ts-host-foundation/app.zon
 new file mode 100644
-index 0000000000000000000000000000000000000000..11dbb2f99b35dbca1d8a4204930a51f072a8f74e
+index 0000000..11dbb2f
 --- /dev/null
 +++ b/examples/ts-host-foundation/app.zon
 @@ -0,0 +1,30 @@
@@ -93,7 +93,7 @@ index 0000000000000000000000000000000000000000..11dbb2f99b35dbca1d8a4204930a51f0
 +}
 diff --git a/examples/ts-host-foundation/src/app.native b/examples/ts-host-foundation/src/app.native
 new file mode 100644
-index 0000000000000000000000000000000000000000..10fe2ff4be511d2faa94cd23d5cbbcf685532038
+index 0000000..10fe2ff
 --- /dev/null
 +++ b/examples/ts-host-foundation/src/app.native
 @@ -0,0 +1,3 @@
@@ -102,7 +102,7 @@ index 0000000000000000000000000000000000000000..10fe2ff4be511d2faa94cd23d5cbbcf6
 +</column>
 diff --git a/examples/ts-host-foundation/src/core.ts b/examples/ts-host-foundation/src/core.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..670d2d557317e44d18b0ed9c358e6462dcbc9e46
+index 0000000..670d2d5
 --- /dev/null
 +++ b/examples/ts-host-foundation/src/core.ts
 @@ -0,0 +1,23 @@
@@ -131,7 +131,7 @@ index 0000000000000000000000000000000000000000..670d2d557317e44d18b0ed9c358e6462
 +export const viewUnbound = ["noop", "reset"] as const;
 diff --git a/examples/ts-host-foundation/src/ts_host.zig b/examples/ts-host-foundation/src/ts_host.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..f7ba4dc5c8256ca99ec4ffc85ea4cbfdea812d7b
+index 0000000..f7ba4dc
 --- /dev/null
 +++ b/examples/ts-host-foundation/src/ts_host.zig
 @@ -0,0 +1,54 @@
@@ -190,7 +190,7 @@ index 0000000000000000000000000000000000000000..f7ba4dc5c8256ca99ec4ffc85ea4cbfd
 +
 +pub fn deinit() void {}
 diff --git a/src/app_runner/root.zig b/src/app_runner/root.zig
-index b198edac143b480fd3d2ce0c30ec39c38036f336..016030c357fc1b3b22b61a1febc4efef05cf565e 100644
+index b198eda..47bb431 100644
 --- a/src/app_runner/root.zig
 +++ b/src/app_runner/root.zig
 @@ -67,6 +67,7 @@ pub const RunOptions = struct {
@@ -201,51 +201,148 @@ index b198edac143b480fd3d2ce0c30ec39c38036f336..016030c357fc1b3b22b61a1febc4efef
      /// Filled by `runWithOptions` from the manifest capability. App entry
      /// points do not set this themselves; the field only carries the owned
      /// binding uniformly into each platform's runtime options.
-@@ -833,6 +834,7 @@ fn runNull(app: native_sdk.App, options: RunOptions, init: std.process.Init) !vo
+@@ -400,6 +401,45 @@ fn manifestStringField(comptime field: []const u8) []const u8 {
+     return value;
+ }
+
++fn manifestStringList(comptime source: anytype, comptime field: []const u8) []const []const u8 {
++    comptime {
++        if (!@hasField(@TypeOf(source), field)) return &.{};
++        var values: []const []const u8 = &.{};
++        for (@field(source, field)) |value| {
++            const string: []const u8 = value;
++            values = values ++ &[_][]const u8{string};
++        }
++        return values;
++    }
++}
++
++fn builtinBridgePolicyFrom(comptime source: anytype) native_sdk.BridgePolicy {
++    comptime {
++        if (!@hasField(@TypeOf(source), "bridge")) return .{};
++        if (!@hasField(@TypeOf(source.bridge), "commands")) return .{};
++        var commands: []const native_sdk.BridgeCommandPolicy = &.{};
++        for (source.bridge.commands) |command| {
++            commands = commands ++ &[_]native_sdk.BridgeCommandPolicy{.{
++                .name = command.name,
++                .permissions = manifestStringList(command, "permissions"),
++                .origins = manifestStringList(command, "origins"),
++            }};
++        }
++        return .{
++            .enabled = commands.len > 0,
++            .permissions = manifestStringList(source, "permissions"),
++            .commands = commands,
++        };
++    }
++}
++
++/// The exact built-in bridge policy authored in app.zon. An absent or empty
++/// command list stays disabled; the runner never infers bridge authority from
++/// a broad app permission alone.
++pub fn manifestBuiltinBridgePolicy() native_sdk.BridgePolicy {
++    return comptime builtinBridgePolicyFrom(app_manifest);
++}
++
+ /// The theme pack app.zon selects (`theme = "geist"`), resolved at
+ /// comptime so an unknown name is a build error naming the field and
+ /// the valid packs — never a silent fallback. Absent means the house
+@@ -833,6 +873,7 @@ fn runNull(app: native_sdk.App, options: RunOptions, init: std.process.Init) !vo
          .file_access = options.file_access,
          .environ = init.minimal.environ,
          .session_recorder = session_recorder,
 +        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
      });
- 
+
      try runtime.run(app);
-@@ -907,6 +909,7 @@ fn runMacos(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
+@@ -907,6 +948,7 @@ fn runMacos(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
          .file_access = options.file_access,
          .environ = init.minimal.environ,
          .session_recorder = session_recorder,
 +        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
      });
      native_sdk.runtime.launch_timing.lap("runtime_ready");
- 
-@@ -978,6 +981,7 @@ fn runLinux(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
+
+@@ -978,6 +1020,7 @@ fn runLinux(app: native_sdk.App, options: RunOptions, init: std.process.Init) !v
          .file_access = options.file_access,
          .environ = init.minimal.environ,
          .session_recorder = session_recorder,
 +        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
      });
- 
+
      try runtime.run(app);
-@@ -1048,6 +1052,7 @@ fn runWindows(app: native_sdk.App, options: RunOptions, init: std.process.Init)
+@@ -1048,6 +1091,7 @@ fn runWindows(app: native_sdk.App, options: RunOptions, init: std.process.Init)
          .file_access = options.file_access,
          .environ = init.minimal.environ,
          .session_recorder = session_recorder,
 +        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
      });
- 
+
      try runtime.run(app);
-@@ -1200,6 +1205,7 @@ fn runSessionReplay(app: native_sdk.App, options: RunOptions, init: std.process.
+@@ -1200,6 +1244,7 @@ fn runSessionReplay(app: native_sdk.App, options: RunOptions, init: std.process.
          .commands = commands,
          .menus = menus,
          .shortcuts = shortcuts,
 +        .secure_canvas_widget_ids = options.secure_canvas_widget_ids,
      });
- 
+
      const verify = if (init.environ_map.get("NATIVE_SDK_SESSION_VERIFY")) |value|
+@@ -1369,6 +1414,40 @@ test "RunOptions explicit command menu and shortcut slices override manifest val
+     try std.testing.expectEqual(@as(usize, 0), empty_options.resolvedShortcuts(&shortcut_storage).len);
+ }
+
++test "manifest built-in bridge policy is explicit and fail closed" {
++    const absent = .{ .permissions = .{ "view", "window" } };
++    const absent_policy = comptime builtinBridgePolicyFrom(absent);
++    try std.testing.expect(!absent_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 0), absent_policy.commands.len);
++
++    const empty = .{
++        .permissions = .{ "view", "window" },
++        .bridge = .{ .commands = .{} },
++    };
++    const empty_policy = comptime builtinBridgePolicyFrom(empty);
++    try std.testing.expect(!empty_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 0), empty_policy.commands.len);
++
++    const declared = .{
++        .permissions = .{ "view", "window" },
++        .bridge = .{ .commands = .{
++            .{
++                .name = "native-sdk.window.focus",
++                .permissions = .{"window"},
++                .origins = .{"zero://inline"},
++            },
++        } },
++    };
++    const declared_policy = comptime builtinBridgePolicyFrom(declared);
++    try std.testing.expect(declared_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 2), declared_policy.permissions.len);
++    try std.testing.expectEqual(@as(usize, 1), declared_policy.commands.len);
++    try std.testing.expectEqualStrings("native-sdk.window.focus", declared_policy.commands[0].name);
++    try std.testing.expect(declared_policy.allows("native-sdk.window.focus", "zero://inline"));
++    try std.testing.expect(!declared_policy.allows("native-sdk.window.focus", "zero://app"));
++    try std.testing.expect(!declared_policy.allows("native-sdk.window.close", "zero://inline"));
++}
++
+ const StateBuffers = struct {
+     state_dir: [1024]u8 = undefined,
+     file_path: [1200]u8 = undefined,
 diff --git a/src/app_runner/ts_core_main.zig b/src/app_runner/ts_core_main.zig
-index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943fbf77c69d 100644
+index cd98674..4feac22 100644
 --- a/src/app_runner/ts_core_main.zig
 +++ b/src/app_runner/ts_core_main.zig
-@@ -63,6 +63,7 @@ const runner = @import("runner");
+@@ -10,7 +10,8 @@
+ //!   scene / canvas   app.zon's `.shell` through `shellConfigFrom`; the
+ //!                    canvas is the scene's first gpu_surface view.
+ //!   identity         app.zon's `.id`/`.name`/`.display_name`.
+-//!   security         app.zon's `.permissions` and navigation origins.
++//!   security         app.zon's `.permissions`, navigation origins, and
++//!                    explicit built-in bridge command policy.
+ //!   theme            app.zon's `.theme` pack; the stock tokens compose
+ //!                    it with the live system appearance. `.theme_accent`
+ //!                    layers the manifest's one-accent brand override
+@@ -63,6 +64,7 @@ const runner = @import("runner");
  const native_sdk = @import("native_sdk");
  const manifest = @import("app_manifest_zon");
  pub const core = @import("core.zig");
@@ -253,15 +350,15 @@ index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943f
  const services = @import("services.zig");
  const service_carrier = @import("service_carrier.zig");
  const relational_migrations = @import("migrations.zig");
-@@ -94,6 +95,7 @@ const allowed_origins = manifestAllowedOrigins();
+@@ -94,6 +96,7 @@ const allowed_origins = manifestAllowedOrigins();
  const app_data_dir_env = "NATIVE_SDK_APP_DATA_DIR";
- 
+
  pub fn main(init: std.process.Init) !void {
 +    comptime validateTsHost();
      var options: Adapter.Options = .{
          .name = manifest.name,
          .scene = shell_scene,
-@@ -117,6 +119,33 @@ pub fn main(init: std.process.Init) !void {
+@@ -117,6 +120,33 @@ pub fn main(init: std.process.Init) !void {
          // exported command mapper.
          options.on_command = core.commandMsg;
      }
@@ -295,9 +392,11 @@ index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943f
      // The platform caches directory for this app: when the core's
      // `Cmd.audioPlay` names a URL with no cachePath, the bridge derives
      // the conventional content-addressed path under this directory —
-@@ -318,6 +347,10 @@ pub fn main(init: std.process.Init) !void {
+@@ -317,7 +347,12 @@ pub fn main(init: std.process.Init) !void {
+         .icon_path = "assets/icon.png",
          .default_frame = comptime defaultFrame(),
          .restore_state = comptime startupRestoreState(),
++        .builtin_bridge = comptime runner.manifestBuiltinBridgePolicy(),
          .js_window_api = false,
 +        .secure_canvas_widget_ids = if (comptime @hasDecl(ts_host, "secureInputWidgetIds"))
 +            ts_host.secureInputWidgetIds()
@@ -306,7 +405,7 @@ index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943f
          .security = .{
              .permissions = app_permissions,
              .navigation = .{ .allowed_origins = allowed_origins },
-@@ -514,3 +547,66 @@ fn manifestAllowedOrigins() []const []const u8 {
+@@ -514,3 +549,66 @@ fn manifestAllowedOrigins() []const []const u8 {
          return manifestStringList(manifest.security.navigation, "allowed_origins");
      }
  }
@@ -375,13 +474,13 @@ index cd9867451afd54aa0428b2abe1a94798ffa21a80..d2dfeed4c9a27eb3ee7c00083b0b943f
 +}
 diff --git a/src/app_runner/ts_host_default.zig b/src/app_runner/ts_host_default.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..8b84c6e383018c53bec97b0db64b892103db789b
+index 0000000..8b84c6e
 --- /dev/null
 +++ b/src/app_runner/ts_host_default.zig
 @@ -0,0 +1 @@
 +//! Empty host extension for TypeScript apps that do not provide src/ts_host.zig.
 diff --git a/src/runtime/api.zig b/src/runtime/api.zig
-index 50dbbcc4f7b402cb517d4a049e508f7e4f73ad6c..0218f91d6600317ed22c3e2b5061a52901e98f75 100644
+index 50dbbcc..0218f91 100644
 --- a/src/runtime/api.zig
 +++ b/src/runtime/api.zig
 @@ -554,4 +554,15 @@ pub const Options = struct {
@@ -401,7 +500,7 @@ index 50dbbcc4f7b402cb517d4a049e508f7e4f73ad6c..0218f91d6600317ed22c3e2b5061a529
 +    return false;
 +}
 diff --git a/src/runtime/automation_widget_dispatch.zig b/src/runtime/automation_widget_dispatch.zig
-index c711705650a861a4ba9bfb8dac1df75999868a30..54c90e524f73bf4cd7a3b7435ec659b6e4789027 100644
+index c711705..54c90e5 100644
 --- a/src/runtime/automation_widget_dispatch.zig
 +++ b/src/runtime/automation_widget_dispatch.zig
 @@ -701,7 +701,13 @@ pub fn RuntimeAutomationWidgetDispatch(comptime Runtime: type) type {
@@ -420,13 +519,13 @@ index c711705650a861a4ba9bfb8dac1df75999868a30..54c90e524f73bf4cd7a3b7435ec659b6
              try CanvasWidgetEventMethods().updateCanvasWidgetTextFromKeyboard(self, &keyboard_event);
              try self.dispatchEvent(app, .{ .canvas_widget_keyboard = keyboard_event });
 diff --git a/src/runtime/canvas_widget_event_tests.zig b/src/runtime/canvas_widget_event_tests.zig
-index 99123ead69d3d333a77983020a96a3a2ea8f9b9e..cadfa8713ea30dd42ecb3a0ddcfc98732fd3fe2e 100644
+index 99123ea..cadfa87 100644
 --- a/src/runtime/canvas_widget_event_tests.zig
 +++ b/src/runtime/canvas_widget_event_tests.zig
 @@ -65,6 +65,57 @@ const builtinBridgeErrorMessage = support.builtinBridgeErrorMessage;
  const testViewByLabel = support.testViewByLabel;
  const testCanvasWidgetPartId = support.testCanvasWidgetPartId;
- 
+
 +test "automation canvas text edit notifies the host input pacing seam" {
 +    const NoteProbe = struct {
 +        var count: usize = 0;
@@ -482,7 +581,7 @@ index 99123ead69d3d333a77983020a96a3a2ea8f9b9e..cadfa8713ea30dd42ecb3a0ddcfc9873
      const TestApp = struct {
          fn app(self: *@This()) App {
 diff --git a/src/runtime/canvas_widget_state.zig b/src/runtime/canvas_widget_state.zig
-index 11296ed1c0b8c4cd7fb9b4e171268e22071d153e..f4c292e71ad61221c16fd471b2c9207a3167a0c0 100644
+index 11296ed..f4c292e 100644
 --- a/src/runtime/canvas_widget_state.zig
 +++ b/src/runtime/canvas_widget_state.zig
 @@ -304,15 +304,29 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
@@ -521,13 +620,13 @@ index 11296ed1c0b8c4cd7fb9b4e171268e22071d153e..f4c292e71ad61221c16fd471b2c9207a
 +            defer if (self.options.session_recorder) |recorder| {
 +                if (session_event_staged) recorder.commitEvent();
 +            };
- 
+
              // Every assistive action rides the SAME machinery the
              // automation widget verbs use — the key-driven activation for
 @@ -999,6 +1013,15 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
              return canvas.textGeometryForWidget(node.widget, self.views[index].widget_tokens);
          }
- 
+
 +        pub fn canvasWidgetTextEditState(self: *const Runtime, window_id: platform.WindowId, label: []const u8, id: canvas.ObjectId) anyerror!canvas.TextEditState {
 +            try validateRuntimeViewParent(self, window_id);
 +            try validateViewLabel(label);
@@ -543,7 +642,7 @@ index 11296ed1c0b8c4cd7fb9b4e171268e22071d153e..f4c292e71ad61221c16fd471b2c9207a
 @@ -1007,6 +1030,14 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
              if (self.views[index].kind != .gpu_surface) return error.InvalidViewOptions;
              if (!self.views[index].canEditCanvasWidgetText(id)) return error.InvalidCommand;
- 
+
 +            if (self.options.session_recorder) |recorder| {
 +                const writes_secure_text = switch (edit) {
 +                    .insert_text, .set_composition, .commit_composition => runtime_api.isSecureCanvasWidgetId(self.options.secure_canvas_widget_ids, id),
@@ -556,7 +655,7 @@ index 11296ed1c0b8c4cd7fb9b4e171268e22071d153e..f4c292e71ad61221c16fd471b2c9207a
              // source (the keyboard choke point's rule): a single-line
              // field's editor never accepts a line break, whoever writes.
 diff --git a/src/runtime/core.zig b/src/runtime/core.zig
-index e7803998ef96b908a553f85f9224249466975a88..c6c9e30b4265e47182dd5bc09cba3ed8f6be894d 100644
+index e780399..c6c9e30 100644
 --- a/src/runtime/core.zig
 +++ b/src/runtime/core.zig
 @@ -970,6 +970,7 @@ pub const Runtime = struct {
@@ -565,10 +664,10 @@ index e7803998ef96b908a553f85f9224249466975a88..c6c9e30b4265e47182dd5bc09cba3ed8
      pub const canvasWidgetTextGeometry = CanvasWidgetStateMethods.canvasWidgetTextGeometry;
 +    pub const canvasWidgetTextEditState = CanvasWidgetStateMethods.canvasWidgetTextEditState;
      pub const editCanvasWidgetText = CanvasWidgetStateMethods.editCanvasWidgetText;
- 
+
      const CanvasWidgetDisplayMethods = runtime_canvas_widget_display.RuntimeCanvasWidgetDisplay(Runtime);
 diff --git a/src/runtime/effects.zig b/src/runtime/effects.zig
-index b48ba7cb0ee6711f805c1e7264cb0d8ef9ac502b..d7943254dda39fe1f4b5fae53df1344267f3db46 100644
+index b48ba7c..d794325 100644
 --- a/src/runtime/effects.zig
 +++ b/src/runtime/effects.zig
 @@ -4836,6 +4836,16 @@ pub fn Effects(comptime Msg: type) type {
@@ -608,7 +707,7 @@ index b48ba7cb0ee6711f805c1e7264cb0d8ef9ac502b..d7943254dda39fe1f4b5fae53df13442
 @@ -6165,6 +6178,25 @@ pub fn Effects(comptime Msg: type) type {
              if (self.hasPending()) self.wakeHost();
          }
- 
+
 +        /// Publish the app-owned host-worker wake binding. Loop-thread only;
 +        /// UiApp calls this after binding services whenever `host_poll` is
 +        /// installed. The host's exactly-once deinit must stop and join every
@@ -632,7 +731,7 @@ index b48ba7cb0ee6711f805c1e7264cb0d8ef9ac502b..d7943254dda39fe1f4b5fae53df13442
          /// header — a producer that could consume the published
          /// services snapshot. Replay parks never arm one (their
 diff --git a/src/runtime/flow.zig b/src/runtime/flow.zig
-index 3feeaf9fc18d17fcb33f9ef4bdc911dcbe187788..5ca9a850d6e52668ab7aabd7c1f155b117e7b76c 100644
+index 3feeaf9..5ca9a85 100644
 --- a/src/runtime/flow.zig
 +++ b/src/runtime/flow.zig
 @@ -208,9 +208,17 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
@@ -658,7 +757,7 @@ index 3feeaf9fc18d17fcb33f9ef4bdc911dcbe187788..5ca9a850d6e52668ab7aabd7c1f155b1
 @@ -502,6 +510,32 @@ pub fn RuntimeFlow(comptime Runtime: type) type {
              }
          }
- 
+
 +        fn eventTargetsSecureCanvasInput(self: *const Runtime, event_value: *const platform.Event) bool {
 +            if (event_value.* == .gpu_surface_input) {
 +                const input = &event_value.gpu_surface_input;
@@ -689,13 +788,13 @@ index 3feeaf9fc18d17fcb33f9ef4bdc911dcbe187788..5ca9a850d6e52668ab7aabd7c1f155b1
              const event_fields = [_]trace.Field{trace.string("event", event_value.name())};
              log(self, "runtime.event", null, &event_fields);
 diff --git a/src/runtime/session_record.zig b/src/runtime/session_record.zig
-index cf45a2af61de0de883a3617fbd6fa6531ba379c3..2f5e2c19c541e4331ef7754684ae4078d7c73346 100644
+index cf45a2a..2f5e2c1 100644
 --- a/src/runtime/session_record.zig
 +++ b/src/runtime/session_record.zig
 @@ -166,6 +166,14 @@ pub const SessionRecorder = struct {
          self.depth += 1;
      }
- 
+
 +    /// Secure input cannot be replayed faithfully without persisting the
 +    /// credential bytes. Stop and deliberately leave the journal unsealed so
 +    /// replay refuses it instead of presenting a redacted event as success.
@@ -708,13 +807,13 @@ index cf45a2af61de0de883a3617fbd6fa6531ba379c3..2f5e2c19c541e4331ef7754684ae4078
      /// successful `stageEvent`, on dispatch exit.
      pub fn commitEvent(self: *SessionRecorder) void {
 diff --git a/src/runtime/session_tests.zig b/src/runtime/session_tests.zig
-index 706631cd77381f4841ac38133cbe48f0c7aee875..dca9d8f7aafe596221e9b5a583442b180d5696b6 100644
+index 706631c..dca9d8f 100644
 --- a/src/runtime/session_tests.zig
 +++ b/src/runtime/session_tests.zig
 @@ -843,6 +843,49 @@ const DirectVerbSession = struct {
      }
  };
- 
+
 +test "secure canvas text input fails recording closed without blocking the live edit" {
 +    const gpa = std.testing.allocator;
 +    const buffer = try std.heap.page_allocator.create(JournalBuffer);
@@ -762,7 +861,7 @@ index 706631cd77381f4841ac38133cbe48f0c7aee875..dca9d8f7aafe596221e9b5a583442b18
  /// their synthesized children — a child record is exactly the stray
  /// input that replays against the wrong focus.
 diff --git a/src/runtime/ui_app.zig b/src/runtime/ui_app.zig
-index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da9089c244 100644
+index 02589cb..e7ab89f 100644
 --- a/src/runtime/ui_app.zig
 +++ b/src/runtime/ui_app.zig
 @@ -587,6 +587,14 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
@@ -825,7 +924,7 @@ index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da
          /// (fullscreen transitions flip it; ordinary resizes do not).
 @@ -1429,8 +1459,9 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
          }
- 
+
          fn assertOptions(options: Options) void {
 -            std.debug.assert(options.view != null or options.markup != null);
 +            std.debug.assert(options.view != null or options.view_viewport != null or options.markup != null);
@@ -845,7 +944,7 @@ index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da
 @@ -1469,6 +1501,12 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
              self.pixel_buffer_window_id = null;
          }
- 
+
 +        fn deinitHost(self: *Self) void {
 +            if (self.host_deinit_ran) return;
 +            self.host_deinit_ran = true;
@@ -862,7 +961,7 @@ index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da
 +            self.deinitHost();
              self.effects.deinit();
          }
- 
+
 @@ -1503,6 +1542,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
          /// recorded — the recorder's result journal.
          fn bindEffectsChannel(self: *Self, runtime: *Runtime) void {
@@ -889,7 +988,7 @@ index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da
 +            if (self.options.view_viewport) |view| return view(ui, &self.model, self.canvas_size);
 +            return self.options.view.?(ui, &self.model);
          }
- 
+
          /// Parse and activate a markup source (the reload seam: hot reload
 @@ -3582,7 +3622,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
                  // be computed the way the poll computes it — over the whole
@@ -971,13 +1070,13 @@ index 02589cbb01bbb0870738d495122454b73d2ab656..e7ab89fde4077b0e0a56473edb85e9da
                      if (!widget.state.disabled) {
                          // A focused BOUND terminal owns its keys the way
 diff --git a/src/runtime/ui_app_tests.zig b/src/runtime/ui_app_tests.zig
-index 864209051f5fbaf1e01e12d494cc108a1276efaa..c95cad281113937d5328869e503ba0714fc6425f 100644
+index 8642090..c95cad2 100644
 --- a/src/runtime/ui_app_tests.zig
 +++ b/src/runtime/ui_app_tests.zig
 @@ -38,6 +38,12 @@ fn counterView(ui: *CounterApp.Ui, model: *const CounterModel) CounterApp.Ui.Nod
      });
  }
- 
+
 +var counter_viewport_seen: geometry.SizeF = .{};
 +fn counterViewportView(ui: *CounterApp.Ui, model: *const CounterModel, viewport: geometry.SizeF) CounterApp.Ui.Node {
 +    counter_viewport_seen = viewport;
@@ -1117,7 +1216,7 @@ index 864209051f5fbaf1e01e12d494cc108a1276efaa..c95cad281113937d5328869e503ba071
 +    try std.testing.expectEqual(@as(f32, 300), counter_viewport_seen.height);
 +}
 diff --git a/src/runtime/view.zig b/src/runtime/view.zig
-index 795bde03eaaffe2dc766a7ce0ef0a70cb986a5ea..81c25d313a262f9cbfb131fbb103945b2431378b 100644
+index 795bde0..81c25d3 100644
 --- a/src/runtime/view.zig
 +++ b/src/runtime/view.zig
 @@ -844,6 +844,7 @@ pub const RuntimeView = struct {
@@ -1129,13 +1228,13 @@ index 795bde03eaaffe2dc766a7ce0ef0a70cb986a5ea..81c25d313a262f9cbfb131fbb103945b
      pub const clearCanvasWidgetStaticTextSelection = CanvasWidgetTextMethods.clearCanvasWidgetStaticTextSelection;
      pub const canvasWidgetCopyText = CanvasWidgetTextMethods.canvasWidgetCopyText;
 diff --git a/src/runtime/view_widget_text.zig b/src/runtime/view_widget_text.zig
-index 3ae88fc24e2f3441aa1063abc9cca0fdb1e879aa..daf8d6fe803620a36b64884bfe0c698192af7388 100644
+index 3ae88fc..daf8d6f 100644
 --- a/src/runtime/view_widget_text.zig
 +++ b/src/runtime/view_widget_text.zig
 @@ -978,6 +978,17 @@ pub fn RuntimeViewCanvasWidgetText(comptime RuntimeView: type) type {
              return true;
          }
- 
+
 +        pub fn canvasWidgetTextEditState(self: *const RuntimeView, id: canvas.ObjectId) ?canvas.TextEditState {
 +            const index = self.canvasWidgetNodeIndexById(id) orelse return null;
 +            const widget = self.widget_layout_nodes[index].widget;

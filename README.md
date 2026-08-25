@@ -21,7 +21,9 @@ The public foundation contains:
   bounded native surface input hooks, secure session-input handling, retained
   text-edit after-state, an atomically published host-worker wake seam,
   exactly-once host teardown, automation input pacing, and synchronized public
-  TypeScript/bridge names for shortcut capture;
+  TypeScript/bridge names for shortcut capture. Generated TypeScript Core
+  launchers also carry only the built-in bridge commands explicitly declared
+  by `app.zon`; absent or empty bridge policy remains disabled;
 - [`patches/native-sdk-0.10.0-compiler-tooling.patch`](./patches/native-sdk-0.10.0-compiler-tooling.patch),
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.

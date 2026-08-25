@@ -19,8 +19,9 @@ The repository has two kinds of foundation content:
    - `native-sdk-0.10.0-runtime-foundation.patch` adds the optional thin native
      host, viewport-aware composition, bounded surface input, secure recording
      refusal, retained text-edit after-state, worker wakeup, exactly-once host
-     teardown, automation input pacing, and synchronized shortcut-capture names
-     in the public TypeScript and bridge contracts;
+     teardown, automation input pacing, synchronized shortcut-capture names,
+     and exact `app.zon.bridge.commands` propagation into generated TypeScript
+     Core launchers. Permissions alone never enable that bridge policy;
    - `native-sdk-0.10.0-compiler-tooling.patch` adds the Node stack budget,
      supported `DataView` use, and symbol-aware external-core `Bytes` folding;
    - `native-sdk-0.10.0-ui-foundation.patch` adds the public
@@ -123,7 +124,7 @@ The order is part of the distribution contract. A base-tree mismatch or patch
 failure is a stop condition, not permission to use `--reject`, skip a hunk, or
 continue with a mixed SDK.
 
-### Native SDK 0.9.5 UI-only compatibility
+### Native SDK 0.9.5 UI compatibility
 
 An application that is still pinned to the reviewed 0.9.5 foundation
 distribution `15fd874` may add only the shared UI vocabulary with:
@@ -133,11 +134,14 @@ git apply --check "$foundation/patches/compat/native-sdk-0.9.5-ui-foundation.pat
 git apply "$foundation/patches/compat/native-sdk-0.9.5-ui-foundation.patch"
 ```
 
-Apply it after that distribution's runtime and compiler patches. The current
-manifest records the old base tree, prerequisite patch hashes, and UI patch
-hash, and the foundation gate proves ordered apply/reverse restoration. The
-artifact is `compatibility-only`: it does not make the retired 0.9.5 patches
-active on `main` and must not be combined with the active 0.10.0 patch set.
+Apply it after that distribution's runtime and compiler patches. In addition
+to the five UI templates, the compatibility artifact carries the same
+fail-closed TypeScript Core manifest bridge-policy propagation as the active
+0.10.0 runtime patch. The current manifest records the old base tree,
+prerequisite patch hashes, and compatibility patch hash, and the foundation
+gate proves ordered apply/reverse restoration. The artifact is
+`compatibility-only`: it does not make the retired 0.9.5 patches active on
+`main` and must not be combined with the active 0.10.0 patch set.
 
 ## Consume The UI Templates
 
@@ -234,12 +238,16 @@ marked secure.
 
 ## Current Release Evidence
 
-The public artifacts dated August 24, 2026 have these hashes:
+The public artifacts dated August 25, 2026 have these hashes:
 
 - runtime foundation:
-  `99445c16bd7bc57f2a2d1de8fd978b33e91ffb4f2be3b18905de70ac62d6f67f`;
+  `cf3c67309da60ff58e88268eca586d65b982faee013b3ef779d8f710e50a9569`;
 - compiler/tooling:
-  `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`.
+  `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`;
+- UI foundation:
+  `88ad6c62b60457adc5f62add0b466d543ac9fdd69dfaa7110622f52afa9a8bb3`;
+- Native SDK 0.9.5 compatibility artifact:
+  `ae6ff436ca23bb4933775e041747b91501fd67351a90e07d3fa32520d6772174`.
 
 The final local gates reported:
 
@@ -248,7 +256,7 @@ The final local gates reported:
 - Native tooling: 206 passed;
 - runtime core: 690 passed, 12 skipped;
 - UI shell: 176 passed;
-- full Zig suite: 665 of 665 build steps succeeded, 3533 tests passed, 15
+- full Zig suite: 665 of 665 build steps succeeded, 3537 tests passed, 15
   skipped;
 - independent read-only review remains required before a release claim.
 

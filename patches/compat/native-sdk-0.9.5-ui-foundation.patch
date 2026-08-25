@@ -1,5 +1,118 @@
+diff --git a/src/app_runner/root.zig b/src/app_runner/root.zig
+index d9f608a..8f904e1 100644
+--- a/src/app_runner/root.zig
++++ b/src/app_runner/root.zig
+@@ -381,6 +381,45 @@ fn manifestStringField(comptime field: []const u8) []const u8 {
+     return value;
+ }
+
++fn manifestStringList(comptime source: anytype, comptime field: []const u8) []const []const u8 {
++    comptime {
++        if (!@hasField(@TypeOf(source), field)) return &.{};
++        var values: []const []const u8 = &.{};
++        for (@field(source, field)) |value| {
++            const string: []const u8 = value;
++            values = values ++ &[_][]const u8{string};
++        }
++        return values;
++    }
++}
++
++fn builtinBridgePolicyFrom(comptime source: anytype) native_sdk.BridgePolicy {
++    comptime {
++        if (!@hasField(@TypeOf(source), "bridge")) return .{};
++        if (!@hasField(@TypeOf(source.bridge), "commands")) return .{};
++        var commands: []const native_sdk.BridgeCommandPolicy = &.{};
++        for (source.bridge.commands) |command| {
++            commands = commands ++ &[_]native_sdk.BridgeCommandPolicy{.{
++                .name = command.name,
++                .permissions = manifestStringList(command, "permissions"),
++                .origins = manifestStringList(command, "origins"),
++            }};
++        }
++        return .{
++            .enabled = commands.len > 0,
++            .permissions = manifestStringList(source, "permissions"),
++            .commands = commands,
++        };
++    }
++}
++
++/// The exact built-in bridge policy authored in app.zon. An absent or empty
++/// command list stays disabled; the runner never infers bridge authority from
++/// a broad app permission alone.
++pub fn manifestBuiltinBridgePolicy() native_sdk.BridgePolicy {
++    return comptime builtinBridgePolicyFrom(app_manifest);
++}
++
+ /// The theme pack app.zon selects (`theme = "geist"`), resolved at
+ /// comptime so an unknown name is a build error naming the field and
+ /// the valid packs — never a silent fallback. Absent means the house
+@@ -1350,6 +1389,40 @@ test "RunOptions explicit command menu and shortcut slices override manifest val
+     try std.testing.expectEqual(@as(usize, 0), empty_options.resolvedShortcuts(&shortcut_storage).len);
+ }
+
++test "manifest built-in bridge policy is explicit and fail closed" {
++    const absent = .{ .permissions = .{ "view", "window" } };
++    const absent_policy = comptime builtinBridgePolicyFrom(absent);
++    try std.testing.expect(!absent_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 0), absent_policy.commands.len);
++
++    const empty = .{
++        .permissions = .{ "view", "window" },
++        .bridge = .{ .commands = .{} },
++    };
++    const empty_policy = comptime builtinBridgePolicyFrom(empty);
++    try std.testing.expect(!empty_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 0), empty_policy.commands.len);
++
++    const declared = .{
++        .permissions = .{ "view", "window" },
++        .bridge = .{ .commands = .{
++            .{
++                .name = "native-sdk.window.focus",
++                .permissions = .{"window"},
++                .origins = .{"zero://inline"},
++            },
++        } },
++    };
++    const declared_policy = comptime builtinBridgePolicyFrom(declared);
++    try std.testing.expect(declared_policy.enabled);
++    try std.testing.expectEqual(@as(usize, 2), declared_policy.permissions.len);
++    try std.testing.expectEqual(@as(usize, 1), declared_policy.commands.len);
++    try std.testing.expectEqualStrings("native-sdk.window.focus", declared_policy.commands[0].name);
++    try std.testing.expect(declared_policy.allows("native-sdk.window.focus", "zero://inline"));
++    try std.testing.expect(!declared_policy.allows("native-sdk.window.focus", "zero://app"));
++    try std.testing.expect(!declared_policy.allows("native-sdk.window.close", "zero://inline"));
++}
++
+ const StateBuffers = struct {
+     state_dir: [1024]u8 = undefined,
+     file_path: [1200]u8 = undefined,
+diff --git a/src/app_runner/ts_core_main.zig b/src/app_runner/ts_core_main.zig
+index d2dfeed..4feac22 100644
+--- a/src/app_runner/ts_core_main.zig
++++ b/src/app_runner/ts_core_main.zig
+@@ -10,7 +10,8 @@
+ //!   scene / canvas   app.zon's `.shell` through `shellConfigFrom`; the
+ //!                    canvas is the scene's first gpu_surface view.
+ //!   identity         app.zon's `.id`/`.name`/`.display_name`.
+-//!   security         app.zon's `.permissions` and navigation origins.
++//!   security         app.zon's `.permissions`, navigation origins, and
++//!                    explicit built-in bridge command policy.
+ //!   theme            app.zon's `.theme` pack; the stock tokens compose
+ //!                    it with the live system appearance. `.theme_accent`
+ //!                    layers the manifest's one-accent brand override
+@@ -346,6 +347,7 @@ pub fn main(init: std.process.Init) !void {
+         .icon_path = "assets/icon.png",
+         .default_frame = comptime defaultFrame(),
+         .restore_state = comptime startupRestoreState(),
++        .builtin_bridge = comptime runner.manifestBuiltinBridgePolicy(),
+         .js_window_api = false,
+         .secure_canvas_widget_ids = if (comptime @hasDecl(ts_host, "secureInputWidgetIds"))
+             ts_host.secureInputWidgetIds()
 diff --git a/src/primitives/canvas/root.zig b/src/primitives/canvas/root.zig
-index d5b129412febb89df5fd4c11d442965b1f624472..76f566bbaa1d2e4685677edf714ff836e0684d57 100644
+index d5b1294..76f566b 100644
 --- a/src/primitives/canvas/root.zig
 +++ b/src/primitives/canvas/root.zig
 @@ -594,6 +594,7 @@ pub fn emitModelContractMain(comptime app: type, init: std.process.Init) !void {
@@ -11,7 +124,7 @@ index d5b129412febb89df5fd4c11d442965b1f624472..76f566bbaa1d2e4685677edf714ff836
  pub const UiHandlerEvent = ui_builder.UiHandlerEvent;
  pub const uiKey = ui_builder.uiKey;
 diff --git a/src/primitives/canvas/tests.zig b/src/primitives/canvas/tests.zig
-index c0c58e818622d469efa1139a1adf4539a91a1311..342f88077e41c2c1a4cafc4fdea27478fa6d8970 100644
+index c0c58e8..342f880 100644
 --- a/src/primitives/canvas/tests.zig
 +++ b/src/primitives/canvas/tests.zig
 @@ -2,6 +2,7 @@ test {
@@ -24,7 +137,7 @@ index c0c58e818622d469efa1139a1adf4539a91a1311..342f88077e41c2c1a4cafc4fdea27478
      _ = @import("ui_markup_binary_tests.zig");
 diff --git a/src/primitives/canvas/ui_foundation.zig b/src/primitives/canvas/ui_foundation.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..f26cc9f924ed0d8a839c5abe1347920e8d5fcafe
+index 0000000..f26cc9f
 --- /dev/null
 +++ b/src/primitives/canvas/ui_foundation.zig
 @@ -0,0 +1,43 @@
@@ -73,7 +186,7 @@ index 0000000000000000000000000000000000000000..f26cc9f924ed0d8a839c5abe1347920e
 +}
 diff --git a/src/primitives/canvas/ui_foundation_tests.zig b/src/primitives/canvas/ui_foundation_tests.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e67889b050e5
+index 0000000..e8ac438
 --- /dev/null
 +++ b/src/primitives/canvas/ui_foundation_tests.zig
 @@ -0,0 +1,26 @@
@@ -104,7 +217,7 @@ index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e678
 +    try std.testing.expect(metrics.content_max_width <= metrics.composer_content_max_width);
 +}
 diff --git a/src/tooling/components/identity_tests.zig b/src/tooling/components/identity_tests.zig
-index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a987ba843 100644
+index 40ec363..c8ff7ba 100644
 --- a/src/tooling/components/identity_tests.zig
 +++ b/src/tooling/components/identity_tests.zig
 @@ -22,6 +22,7 @@ const canvas = native_sdk.canvas;
@@ -150,7 +263,7 @@ index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a
 +}
 diff --git a/src/tooling/components/ui_foundation.native b/src/tooling/components/ui_foundation.native
 new file mode 100644
-index 0000000000000000000000000000000000000000..1908069bf71f7fe3d460de0f203ab5b969e59919
+index 0000000..1908069
 --- /dev/null
 +++ b/src/tooling/components/ui_foundation.native
 @@ -0,0 +1,39 @@
@@ -194,7 +307,7 @@ index 0000000000000000000000000000000000000000..1908069bf71f7fe3d460de0f203ab5b9
 +  </column>
 +</template>
 diff --git a/src/tooling/eject_components.zig b/src/tooling/eject_components.zig
-index 3e10091f8d727d3d69f58f8046814df2494c646c..d0a64ba01b1aa825f8ac84a9b71f06e8a4d642dc 100644
+index 3e10091..d0a64ba 100644
 --- a/src/tooling/eject_components.zig
 +++ b/src/tooling/eject_components.zig
 @@ -61,6 +61,12 @@ pub const components = [_]Component{
