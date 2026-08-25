@@ -104,7 +104,7 @@ index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e678
 +    try std.testing.expect(metrics.content_max_width <= metrics.composer_content_max_width);
 +}
 diff --git a/src/tooling/components/identity_tests.zig b/src/tooling/components/identity_tests.zig
-index 40ec36362fcc6bb46cab1e75d43f20181de537aa..18bbfa2276ae07711d6c55f9b59674c95260c837 100644
+index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a987ba843 100644
 --- a/src/tooling/components/identity_tests.zig
 +++ b/src/tooling/components/identity_tests.zig
 @@ -22,6 +22,7 @@ const canvas = native_sdk.canvas;
@@ -115,7 +115,7 @@ index 40ec36362fcc6bb46cab1e75d43f20181de537aa..18bbfa2276ae07711d6c55f9b59674c9
 
  /// A stand-in app model/message pair: the composites under test bind no
  /// model state themselves (their inputs arrive as options/args), so an
-@@ -183,3 +184,31 @@ test "the ejected timeline template's defaults match the library element's defau
+@@ -183,3 +184,32 @@ test "the ejected timeline template's defaults match the library element's defau
 
      try testing.expectEqualDeep(element_tree.root, template_tree.root);
  }
@@ -144,12 +144,13 @@ index 40ec36362fcc6bb46cab1e75d43f20181de537aa..18bbfa2276ae07711d6c55f9b59674c9
 +    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[0].kind);
 +    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[1].kind);
 +    try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[2].kind);
++    try testing.expectEqual(@as(f32, 0), tree.root.children[2].layout.grow);
 +    try testing.expectEqual(canvas.WidgetKind.panel, tree.root.children[3].kind);
 +    try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
 +}
 diff --git a/src/tooling/components/ui_foundation.native b/src/tooling/components/ui_foundation.native
 new file mode 100644
-index 0000000000000000000000000000000000000000..99aa0976cd4d161f828183148c7c9756a47a5e33
+index 0000000000000000000000000000000000000000..1908069bf71f7fe3d460de0f203ab5b969e59919
 --- /dev/null
 +++ b/src/tooling/components/ui_foundation.native
 @@ -0,0 +1,39 @@
@@ -175,8 +176,8 @@ index 0000000000000000000000000000000000000000..99aa0976cd4d161f828183148c7c9756
 +  </column>
 +</template>
 +
-+<template name="ui-foundation-composer" args="label=">
-+  <row grow="1" padding="12" main="center" background="background" label="{label}">
++<template name="ui-foundation-composer" args="grow=0 label=">
++  <row grow="{grow}" padding="12" main="center" background="background" label="{label}">
 +    <slot/>
 +  </row>
 +</template>

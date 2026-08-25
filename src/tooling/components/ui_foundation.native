@@ -20,8 +20,8 @@
   </column>
 </template>
 
-<template name="ui-foundation-composer" args="label=">
-  <row grow="1" padding="12" main="center" background="background" label="{label}">
+<template name="ui-foundation-composer" args="grow=0 label=">
+  <row grow="{grow}" padding="12" main="center" background="background" label="{label}">
     <slot/>
   </row>
 </template>

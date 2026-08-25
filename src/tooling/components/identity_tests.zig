@@ -209,6 +209,7 @@ test "the public UI foundation templates are headless and resolve through the re
     try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[0].kind);
     try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[1].kind);
     try testing.expectEqual(canvas.WidgetKind.row, tree.root.children[2].kind);
+    try testing.expectEqual(@as(f32, 0), tree.root.children[2].layout.grow);
     try testing.expectEqual(canvas.WidgetKind.panel, tree.root.children[3].kind);
     try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
 }
