@@ -1,5 +1,5 @@
 diff --git a/packages/core/scripts/compiler_command.mjs b/packages/core/scripts/compiler_command.mjs
-index 4fca5e775bc9633094a67c71ac9bad64d3674e6f..b95a58a87cc61462b8455a76a2190db9160e9370 100644
+index 4fca5e77..b95a58a8 100644
 --- a/packages/core/scripts/compiler_command.mjs
 +++ b/packages/core/scripts/compiler_command.mjs
 @@ -67,5 +67,5 @@ export function publishedScriptcArgv(origin, options = {}) {
@@ -10,7 +10,7 @@ index 4fca5e775bc9633094a67c71ac9bad64d3674e6f..b95a58a87cc61462b8455a76a2190db9
 +  return [node, "--stack-size=32768", target];
  }
 diff --git a/packages/core/scripts/run_external_core_compiler.mjs b/packages/core/scripts/run_external_core_compiler.mjs
-index aa6dcfc03b5b163a321eefa3df3f5ba439f5f126..b1a94f10f7247590a38796db2939ec274f5b61ca 100644
+index aa6dcfc0..b1a94f10 100644
 --- a/packages/core/scripts/run_external_core_compiler.mjs
 +++ b/packages/core/scripts/run_external_core_compiler.mjs
 @@ -66,7 +66,7 @@ try {
@@ -23,7 +23,7 @@ index aa6dcfc03b5b163a321eefa3df3f5ba439f5f126..b1a94f10f7247590a38796db2939ec27
  } catch (error) {
    console.error(`the external TypeScript compiler is not installed or has no valid published bin: ${error instanceof Error ? error.message : String(error)} — reinstall @native-sdk/cli, or point NATIVE_SDK_CORE_COMPILER at the pinned release's command`);
 diff --git a/packages/core/scripts/stage_external_core.mjs b/packages/core/scripts/stage_external_core.mjs
-index ef6ba6fde41499644b314ed23d7268f27a8940c9..f11d460079753e5dcbab95df5fe8c9aa0982b3d2 100644
+index ef6ba6fd..f11d4600 100644
 --- a/packages/core/scripts/stage_external_core.mjs
 +++ b/packages/core/scripts/stage_external_core.mjs
 @@ -27,6 +27,7 @@
@@ -151,7 +151,7 @@ index ef6ba6fde41499644b314ed23d7268f27a8940c9..f11d460079753e5dcbab95df5fe8c9aa
  
  /// The names of `export type X = ...` declarations in a staged file
 diff --git a/packages/core/src/checker.ts b/packages/core/src/checker.ts
-index c68199308a21cebcaedd81c91a297187e57ebaeb..9887059a689aa2210e7be83f9020504fe291fb73 100644
+index c6819930..9887059a 100644
 --- a/packages/core/src/checker.ts
 +++ b/packages/core/src/checker.ts
 @@ -2984,7 +2984,7 @@ export class SubsetChecker {
@@ -164,7 +164,7 @@ index c68199308a21cebcaedd81c91a297187e57ebaeb..9887059a689aa2210e7be83f9020504f
              const cls = this.table.classes.get(name);
              const supported = decl !== null && ts.isClassDeclaration(decl) && cls !== undefined && cls.decl === decl;
 diff --git a/packages/core/test/checker.test.ts b/packages/core/test/checker.test.ts
-index 363fd31c216f5fd4b9c460076398a5223a5f47ea..1309f62ff84764e8bc131fbf6ee65cf432747fa7 100644
+index 363fd31c..1309f62f 100644
 --- a/packages/core/test/checker.test.ts
 +++ b/packages/core/test/checker.test.ts
 @@ -398,6 +398,18 @@ test("NS1005 ambient time and randomness", () => {
@@ -187,7 +187,7 @@ index 363fd31c216f5fd4b9c460076398a5223a5f47ea..1309f62ff84764e8bc131fbf6ee65cf4
    const ids = ruleIds(checkOnly(`export const C = class { id: number = 1; };`));
    assert.ok(ids.includes("NS1006"), `got ${ids}`);
 diff --git a/packages/core/test/compiler_command.test.ts b/packages/core/test/compiler_command.test.ts
-index 0675a7ffb7d35a5f1cbf6d0a4d4996ddfb760466..ee81a4c3b05de6f52daf62c21557ba26e2d3a820 100644
+index 0675a7ff..ee81a4c3 100644
 --- a/packages/core/test/compiler_command.test.ts
 +++ b/packages/core/test/compiler_command.test.ts
 @@ -48,5 +48,6 @@ test("published scriptc command follows the package bin bootstrap", () => {
@@ -199,7 +199,7 @@ index 0675a7ffb7d35a5f1cbf6d0a4d4996ddfb760466..ee81a4c3b05de6f52daf62c21557ba26
 +  assert.match(argv[2], /scriptc[/\\]dist[/\\]bootstrap\.js$/);
  });
 diff --git a/packages/core/test/external_core_compiler.test.ts b/packages/core/test/external_core_compiler.test.ts
-index 7ec3929d8ed04cd8526352d76e7c62f080119a7c..56a3ee87de6c6764ae6e169f803aab1cfd7a5056 100644
+index 7ec3929d..56a3ee87 100644
 --- a/packages/core/test/external_core_compiler.test.ts
 +++ b/packages/core/test/external_core_compiler.test.ts
 @@ -80,6 +80,7 @@ test("the external core compile lane uses the target-aware zig-cc environment",
@@ -212,7 +212,7 @@ index 7ec3929d8ed04cd8526352d76e7c62f080119a7c..56a3ee87de6c6764ae6e169f803aab1c
  if (!(process.env.PATH ?? "").startsWith(${JSON.stringify(zigDir)})) { console.error("zig directory missing from PATH front"); process.exit(9); }
 diff --git a/packages/core/test/stage_external_core.test.ts b/packages/core/test/stage_external_core.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..08b5858ef8d327f629ddcafa9e58a4d4b6290b10
+index 00000000..08b5858e
 --- /dev/null
 +++ b/packages/core/test/stage_external_core.test.ts
 @@ -0,0 +1,85 @@

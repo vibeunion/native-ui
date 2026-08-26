@@ -15,16 +15,16 @@ The repository has two kinds of foundation content:
    - the shortcut-capture contract, with system implementations on macOS and
      Windows and explicit unsupported results on Linux and Chromium-backed
      hosts.
-2. Generic Native SDK 0.10.0 changes distributed as ordered patches:
-   - `native-sdk-0.10.0-runtime-foundation.patch` adds the optional thin native
+2. Generic Native SDK 0.10.1 changes distributed as ordered patches:
+   - `native-sdk-0.10.1-runtime-foundation.patch` adds the optional thin native
      host, viewport-aware composition, bounded surface input, secure recording
      refusal, retained text-edit after-state, worker wakeup, exactly-once host
      teardown, automation input pacing, synchronized shortcut-capture names,
      and exact `app.zon.bridge.commands` propagation into generated TypeScript
      Core launchers. Permissions alone never enable that bridge policy;
-   - `native-sdk-0.10.0-compiler-tooling.patch` adds the Node stack budget,
+   - `native-sdk-0.10.1-compiler-tooling.patch` adds the Node stack budget,
      supported `DataView` use, and symbol-aware external-core `Bytes` folding;
-   - `native-sdk-0.10.0-ui-foundation.patch` adds the public
+   - `native-sdk-0.10.1-ui-foundation.patch` adds the public
      `ui-foundation` ejection target with headless toolbar, sidebar, composer,
      panel, and timeline templates.
 
@@ -112,12 +112,12 @@ patched="$(dirname "$foundation")/native-ui-patched"
 git -C "$foundation" worktree add --detach "$patched" "$base"
 cd "$patched"
 
-git apply --check "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
-git apply "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
-git apply --check "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
-git apply "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
-git apply --check "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
-git apply "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.1-runtime-foundation.patch"
+git apply "$foundation/patches/native-sdk-0.10.1-runtime-foundation.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.1-compiler-tooling.patch"
+git apply "$foundation/patches/native-sdk-0.10.1-compiler-tooling.patch"
+git apply --check "$foundation/patches/native-sdk-0.10.1-ui-foundation.patch"
+git apply "$foundation/patches/native-sdk-0.10.1-ui-foundation.patch"
 ```
 
 The order is part of the distribution contract. A base-tree mismatch or patch
@@ -137,11 +137,11 @@ git apply "$foundation/patches/compat/native-sdk-0.9.5-ui-foundation.patch"
 Apply it after that distribution's runtime and compiler patches. In addition
 to the five UI templates, the compatibility artifact carries the same
 fail-closed TypeScript Core manifest bridge-policy propagation as the active
-0.10.0 runtime patch. The current manifest records the old base tree,
+0.10.1 runtime patch. The current manifest records the old base tree,
 prerequisite patch hashes, and compatibility patch hash, and the foundation
 gate proves ordered apply/reverse restoration. The artifact is
 `compatibility-only`: it does not make the retired 0.9.5 patches active on
-`main` and must not be combined with the active 0.10.0 patch set.
+`main` and must not be combined with the active 0.10.1 patch set.
 
 ## Consume The UI Templates
 
@@ -288,8 +288,8 @@ journal actually changed.
 
 ## Native SDK 0.10 Migration Notes
 
-The `0.9.5` to `0.10.0` upgrade keeps the foundation wire version at 8 and
-does not change the journal layout, but it has four migration-sensitive edges:
+The `0.9.5` to `0.10.1` upgrade keeps the foundation wire version at 8 and
+does not change the journal layout, but it has five migration-sensitive edges:
 
 1. ScriptC is exact-pinned at `0.0.35`. Reinstall `packages/core` dependencies
    from the committed lockfile and regenerate external core contracts; do not
@@ -305,6 +305,11 @@ does not change the journal layout, but it has four migration-sensitive edges:
    system web engine. Enabling `updates` requires an HTTPS `feed_url` and a
    valid base64 Ed25519 public key; Chromium-backed macOS apps must leave the
    block disabled. Existing apps need no manifest change unless they opt in.
+5. macOS distribution signing and notarization now require an explicit secure
+   timestamp from Apple; packaging fails if the timestamp service cannot be
+   reached. Deprecated `--team-id` is replaced with `--notarize` and
+   `--notary-profile <name>`, which automates notary submission, JSON
+   acceptance verification, stapling, and ticket validation.
 
 The reserved `app.check-for-updates` command is host-owned. Do not route it
 through a TypeScript `commandMsg` or Zig `on_command` handler.
@@ -315,9 +320,9 @@ For an uncommitted consumer worktree, reverse in the opposite order:
 
 ```bash
 foundation=/absolute/path/to/native-ui
-git apply --reverse "$foundation/patches/native-sdk-0.10.0-ui-foundation.patch"
-git apply --reverse "$foundation/patches/native-sdk-0.10.0-compiler-tooling.patch"
-git apply --reverse "$foundation/patches/native-sdk-0.10.0-runtime-foundation.patch"
+git apply --reverse "$foundation/patches/native-sdk-0.10.1-ui-foundation.patch"
+git apply --reverse "$foundation/patches/native-sdk-0.10.1-compiler-tooling.patch"
+git apply --reverse "$foundation/patches/native-sdk-0.10.1-runtime-foundation.patch"
 ```
 
 For an immutable integration, switch the consumer back to its recorded base or

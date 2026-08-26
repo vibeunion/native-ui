@@ -2,7 +2,7 @@
 
 ## Goal
 
-Publish the reusable cross-platform UI surface and generic Native SDK 0.10.0
+Publish the reusable cross-platform UI surface and generic Native SDK 0.10.1
 patches without carrying application-specific state, runtime policy, backend
 bindings, replay fixtures, or private build paths.
 
@@ -59,7 +59,7 @@ bindings, replay fixtures, or private build paths.
 
 1. Every patch hash matches `patches/manifest.json`.
 2. All three active patches apply cleanly, in order, to
-   `2961db6d4b469963dc6772afb69651e9d665cabc` and reverse cleanly.
+   `5bcfdfdc21a4cfd1902285f30e51b2d9e5ff6012` and reverse cleanly.
 3. Patch additions contain no product environment prefixes, private paths,
    credential material, excluded feature ids, or wire-version edits.
 4. Focused TypeScript, runtime-core, UI-shell, tooling, validation,
@@ -72,20 +72,21 @@ bindings, replay fixtures, or private build paths.
 
 ## Published Evidence
 
-The August 24, 2026 foundation upgrade candidate records the prior runtime
-artifact. The August 25, 2026 TypeScript runner follow-up updates the active
-runtime patch and the compatibility-only 0.9.5 UI artifact; the active
-compiler/tooling and 0.10.0 UI patches remain unchanged:
+The August 26, 2026 foundation upgrade updates the active runtime,
+compiler/tooling, and UI patches to Native SDK 0.10.1 while preserving the
+compatibility-only 0.9.5 UI artifact:
 
 - runtime patch SHA-256
-  `cf3c67309da60ff58e88268eca586d65b982faee013b3ef779d8f710e50a9569`;
+  `d8aba532033990d391010ab0ec31fa7122e7c96422ed76261440268b48a58989`;
 - compiler/tooling patch SHA-256
-  `1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7`;
+  `f97450893f8f7fd582a2f442a0b36ab75ddf4ffadb79a5beadcf4e45cd018b66`;
+- UI foundation patch SHA-256
+  `017912c30858596281d994fcbdfe733e77fba153641c0ba603fef9af46589cb3`;
 - focused gates: the app-runner target passes 3/3, including a manifest bridge
   policy regression for absent, empty, and declared command lists; the public
   package mirror and runtime TypeScript contract were
   synchronized; the TypeScript package suite passed 245 tests, including 94
-  focused compiler/tooling tests; tooling passed 206, runtime core passed 690
+  focused compiler/tooling tests; tooling passed 210, runtime core passed 690
   with 12 skipped, UI shell passed 176, plus default/custom host builds and
   the ownership/lifecycle negative compile gates;
 - complete Zig gate: 665 of 665 build steps succeeded, 3537 tests passed, and

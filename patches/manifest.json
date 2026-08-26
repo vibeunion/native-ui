@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-25",
+  "generated_at": "2026-08-26",
   "foundation": {
     "repository": "git@github.com:vibeunion/native-ui.git",
-    "base_revision": "2961db6d4b469963dc6772afb69651e9d665cabc",
-    "base_tree": "3f8a5a0563fec142380017592564a3ed1a1ae3de"
+    "base_revision": "5bcfdfdc21a4cfd1902285f30e51b2d9e5ff6012",
+    "base_tree": "a59933278cc6f41e27f29f1f59f63a33ae398b0f"
   },
   "upstream": {
     "repository": "https://github.com/vercel-labs/native.git",
-    "version": "0.10.0",
-    "release_revision": "d0dab95f90aa1aa90717686828e23a21187c872e",
-    "release_tree": "43e364cd50ca2e9c7d399dd36e6273a2841b274b"
+    "version": "0.10.1",
+    "release_revision": "064ca9890cc0cf8adc198215bd0ddaeb586c220a",
+    "release_tree": "518ba19292a2ff4fc60855a983edb1ea85c1ee09"
   },
   "absorbed_revisions": [
     {
@@ -25,20 +25,20 @@
   "patches": [
     {
       "order": 1,
-      "path": "native-sdk-0.10.0-runtime-foundation.patch",
-      "sha256": "cf3c67309da60ff58e88268eca586d65b982faee013b3ef779d8f710e50a9569",
+      "path": "native-sdk-0.10.1-runtime-foundation.patch",
+      "sha256": "d8aba532033990d391010ab0ec31fa7122e7c96422ed76261440268b48a58989",
       "scope": "runtime-foundation"
     },
     {
       "order": 2,
-      "path": "native-sdk-0.10.0-compiler-tooling.patch",
-      "sha256": "1d40d68f6ff1d534fa575bfe93237ea00d4443546a742d7d9044dcd172920fe7",
+      "path": "native-sdk-0.10.1-compiler-tooling.patch",
+      "sha256": "f97450893f8f7fd582a2f442a0b36ab75ddf4ffadb79a5beadcf4e45cd018b66",
       "scope": "compiler-tooling"
     },
     {
       "order": 3,
-      "path": "native-sdk-0.10.0-ui-foundation.patch",
-      "sha256": "88ad6c62b60457adc5f62add0b466d543ac9fdd69dfaa7110622f52afa9a8bb3",
+      "path": "native-sdk-0.10.1-ui-foundation.patch",
+      "sha256": "017912c30858596281d994fcbdfe733e77fba153641c0ba603fef9af46589cb3",
       "scope": "ui-foundation"
     }
   ],

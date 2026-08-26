@@ -3,7 +3,7 @@
 ## VibeUnion Foundation Layer
 
 This repository tracks a reusable cross-platform UI foundation on top of
-Native SDK 0.10.0. It keeps application state in the caller-owned TypeScript
+Native SDK 0.10.1. It keeps application state in the caller-owned TypeScript
 core and adds no second reducer, product store, browser runtime, or product
 backend authority.
 
@@ -16,7 +16,7 @@ The public foundation contains:
   lifecycle, focus ownership, one-shot capture, and the reserved `__capture__`
   command; macOS and Windows system engines implement it today, while Linux
   and Chromium-backed hosts report it unsupported;
-- [`patches/native-sdk-0.10.0-runtime-foundation.patch`](./patches/native-sdk-0.10.0-runtime-foundation.patch),
+- [`patches/native-sdk-0.10.1-runtime-foundation.patch`](./patches/native-sdk-0.10.1-runtime-foundation.patch),
   which adds a thin app-owned host extension, viewport-aware composition,
   bounded native surface input hooks, secure session-input handling, retained
   text-edit after-state, an atomically published host-worker wake seam,
@@ -24,10 +24,10 @@ The public foundation contains:
   TypeScript/bridge names for shortcut capture. Generated TypeScript Core
   launchers also carry only the built-in bridge commands explicitly declared
   by `app.zon`; absent or empty bridge policy remains disabled;
-- [`patches/native-sdk-0.10.0-compiler-tooling.patch`](./patches/native-sdk-0.10.0-compiler-tooling.patch),
+- [`patches/native-sdk-0.10.1-compiler-tooling.patch`](./patches/native-sdk-0.10.1-compiler-tooling.patch),
   which keeps compiler stack usage bounded for large cores, permits supported
   `DataView` decoding, and hardens external-core staging.
-- [`patches/native-sdk-0.10.0-ui-foundation.patch`](./patches/native-sdk-0.10.0-ui-foundation.patch),
+- [`patches/native-sdk-0.10.1-ui-foundation.patch`](./patches/native-sdk-0.10.1-ui-foundation.patch),
   which adds headless toolbar, sidebar, composer, panel, and timeline
   templates. They are ejected into an app and bind to the caller's own
   `Model`/`Msg`; they do not carry product routes, labels, pending state, or a

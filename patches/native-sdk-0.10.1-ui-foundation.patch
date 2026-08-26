@@ -1,8 +1,8 @@
 diff --git a/src/primitives/canvas/root.zig b/src/primitives/canvas/root.zig
-index d5b129412febb89df5fd4c11d442965b1f624472..76f566bbaa1d2e4685677edf714ff836e0684d57 100644
+index dd53d5d0..7d4b2149 100644
 --- a/src/primitives/canvas/root.zig
 +++ b/src/primitives/canvas/root.zig
-@@ -594,6 +594,7 @@ pub fn emitModelContractMain(comptime app: type, init: std.process.Init) !void {
+@@ -595,6 +595,7 @@ pub fn emitModelContractMain(comptime app: type, init: std.process.Init) !void {
  pub const ui_builder = @import("ui.zig");
  pub const Ui = ui_builder.Ui;
  pub const ui_library = @import("ui_library.zig");
@@ -11,7 +11,7 @@ index d5b129412febb89df5fd4c11d442965b1f624472..76f566bbaa1d2e4685677edf714ff836
  pub const UiHandlerEvent = ui_builder.UiHandlerEvent;
  pub const uiKey = ui_builder.uiKey;
 diff --git a/src/primitives/canvas/tests.zig b/src/primitives/canvas/tests.zig
-index c0c58e818622d469efa1139a1adf4539a91a1311..342f88077e41c2c1a4cafc4fdea27478fa6d8970 100644
+index c0c58e81..342f8807 100644
 --- a/src/primitives/canvas/tests.zig
 +++ b/src/primitives/canvas/tests.zig
 @@ -2,6 +2,7 @@ test {
@@ -24,7 +24,7 @@ index c0c58e818622d469efa1139a1adf4539a91a1311..342f88077e41c2c1a4cafc4fdea27478
      _ = @import("ui_markup_binary_tests.zig");
 diff --git a/src/primitives/canvas/ui_foundation.zig b/src/primitives/canvas/ui_foundation.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..f26cc9f924ed0d8a839c5abe1347920e8d5fcafe
+index 00000000..f26cc9f9
 --- /dev/null
 +++ b/src/primitives/canvas/ui_foundation.zig
 @@ -0,0 +1,43 @@
@@ -73,7 +73,7 @@ index 0000000000000000000000000000000000000000..f26cc9f924ed0d8a839c5abe1347920e
 +}
 diff --git a/src/primitives/canvas/ui_foundation_tests.zig b/src/primitives/canvas/ui_foundation_tests.zig
 new file mode 100644
-index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e67889b050e5
+index 00000000..e8ac438d
 --- /dev/null
 +++ b/src/primitives/canvas/ui_foundation_tests.zig
 @@ -0,0 +1,26 @@
@@ -104,7 +104,7 @@ index 0000000000000000000000000000000000000000..e8ac438d58036ab92dc579098206e678
 +    try std.testing.expect(metrics.content_max_width <= metrics.composer_content_max_width);
 +}
 diff --git a/src/tooling/components/identity_tests.zig b/src/tooling/components/identity_tests.zig
-index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a987ba843 100644
+index 40ec3636..c8ff7ba9 100644
 --- a/src/tooling/components/identity_tests.zig
 +++ b/src/tooling/components/identity_tests.zig
 @@ -22,6 +22,7 @@ const canvas = native_sdk.canvas;
@@ -112,11 +112,11 @@ index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a
  const timeline_item_component = @import("timeline_item.zig");
  const timeline_template = @embedFile("timeline.native");
 +const ui_foundation_template = @embedFile("ui_foundation.native");
-
+ 
  /// A stand-in app model/message pair: the composites under test bind no
  /// model state themselves (their inputs arrive as options/args), so an
 @@ -183,3 +184,32 @@ test "the ejected timeline template's defaults match the library element's defau
-
+ 
      try testing.expectEqualDeep(element_tree.root, template_tree.root);
  }
 +
@@ -150,7 +150,7 @@ index 40ec36362fcc6bb46cab1e75d43f20181de537aa..c8ff7ba930fd23ffcead617df6fc469a
 +}
 diff --git a/src/tooling/components/ui_foundation.native b/src/tooling/components/ui_foundation.native
 new file mode 100644
-index 0000000000000000000000000000000000000000..1908069bf71f7fe3d460de0f203ab5b969e59919
+index 00000000..1908069b
 --- /dev/null
 +++ b/src/tooling/components/ui_foundation.native
 @@ -0,0 +1,39 @@
@@ -194,7 +194,7 @@ index 0000000000000000000000000000000000000000..1908069bf71f7fe3d460de0f203ab5b9
 +  </column>
 +</template>
 diff --git a/src/tooling/eject_components.zig b/src/tooling/eject_components.zig
-index 3e10091f8d727d3d69f58f8046814df2494c646c..d0a64ba01b1aa825f8ac84a9b71f06e8a4d642dc 100644
+index 3e10091f..d0a64ba0 100644
 --- a/src/tooling/eject_components.zig
 +++ b/src/tooling/eject_components.zig
 @@ -61,6 +61,12 @@ pub const components = [_]Component{
@@ -208,7 +208,7 @@ index 3e10091f8d727d3d69f58f8046814df2494c646c..d0a64ba01b1aa825f8ac84a9b71f06e8
 +        .form = "markup templates",
 +    },
  };
-
+ 
  pub fn find(name: []const u8) ?*const Component {
 @@ -162,9 +168,10 @@ test "unknown names suggest their nearest ejectable component" {
      // Distance past the typo band suggests nothing instead of nonsense.
@@ -217,7 +217,7 @@ index 3e10091f8d727d3d69f58f8046814df2494c646c..d0a64ba01b1aa825f8ac84a9b71f06e8
 +    try std.testing.expect(find("ui-foundation") != null);
      try std.testing.expect(find("button") == null);
  }
-
+ 
  test "the component list names every ejectable component" {
 -    try std.testing.expectEqualStrings("stepper, timeline, timeline-item", component_list);
 +    try std.testing.expectEqualStrings("stepper, timeline, timeline-item, ui-foundation", component_list);
