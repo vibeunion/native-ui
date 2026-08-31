@@ -1581,6 +1581,11 @@
   ],
   "ejectable": [
     {
+      "name": "question",
+      "form": "markup templates",
+      "path": "src/components/question.native"
+    },
+    {
       "name": "stepper",
       "form": "Zig view function",
       "path": "src/components/stepper.zig"

@@ -318,6 +318,36 @@ test "hover card exposes caller-owned closed and open lifecycle" {
     try std.testing.expectEqual(Msg.hover_leave, open_tree.msgFor(open_card.id, .hover_leave).?);
 }
 
+test "question composition is semantic layout with caller-owned controls" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var ui = TestUi.init(arena_state.allocator());
+
+    const question = ui.questionFrame(.{ .label = "Choose a region" }, .{
+        ui.questionHeader("Where should we deploy?", "Choose one region."),
+        ui.questionSingleOptions(.{ .label = "Regions" }, .{
+            ui.radio(.{ .text = "Washington", .checked = true, .on_change = .activate }),
+            ui.radio(.{ .text = "San Francisco", .on_change = .activate }),
+        }),
+        ui.questionActions(.{}, .{
+            ui.button(.{ .variant = .primary, .on_press = .activate }, "Answer"),
+        }),
+    });
+    const tree = try ui.finalize(question);
+
+    try std.testing.expectEqual(canvas.WidgetKind.card, tree.root.kind);
+    try std.testing.expectEqual(canvas.WidgetRole.group, tree.root.semantics.role);
+    try std.testing.expectEqualStrings("Choose a region", tree.root.semantics.label);
+    try std.testing.expectEqual(@as(f32, 16), tree.root.layout.padding.top);
+    try std.testing.expectEqual(@as(usize, 1), tree.root.children.len);
+    const content = tree.root.children[0];
+    try std.testing.expectEqual(@as(f32, 12), content.layout.gap);
+    try std.testing.expectEqual(canvas.WidgetRole.radiogroup, content.children[1].semantics.role);
+    try std.testing.expectEqual(canvas.WidgetKind.radio, content.children[1].children[0].kind);
+    try std.testing.expectEqual(Msg.activate, tree.msgFor(content.children[1].children[1].id, .change).?);
+    try std.testing.expectEqual(Msg.activate, tree.msgForPointer(content.children[2].children[0].id, .up).?);
+}
+
 test "context-menu aliases copy caller items and preserve typed messages" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();

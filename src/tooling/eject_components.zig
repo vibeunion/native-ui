@@ -44,6 +44,12 @@ pub const Component = struct {
 /// source under `components/`, add its identity test, add a row here.
 pub const components = [_]Component{
     .{
+        .name = "question",
+        .path = "src/components/question.native",
+        .source = @embedFile("components/question.native"),
+        .form = "markup templates",
+    },
+    .{
         .name = "stepper",
         .path = "src/components/stepper.zig",
         .source = @embedFile("components/stepper.zig"),
@@ -162,16 +168,18 @@ test "each canonical source opens with the ownership header" {
 }
 
 test "unknown names suggest their nearest ejectable component" {
+    try std.testing.expectEqualStrings("question", suggestion("queston").?);
     try std.testing.expectEqualStrings("stepper", suggestion("steppr").?);
     try std.testing.expectEqualStrings("timeline", suggestion("timelines").?);
     try std.testing.expectEqualStrings("timeline-item", suggestion("timeline-itm").?);
     // Distance past the typo band suggests nothing instead of nonsense.
     try std.testing.expect(suggestion("carousel") == null);
+    try std.testing.expect(find("question") != null);
     try std.testing.expect(find("stepper") != null);
     try std.testing.expect(find("ui-foundation") != null);
     try std.testing.expect(find("button") == null);
 }
 
 test "the component list names every ejectable component" {
-    try std.testing.expectEqualStrings("stepper, timeline, timeline-item, ui-foundation", component_list);
+    try std.testing.expectEqualStrings("question, stepper, timeline, timeline-item, ui-foundation", component_list);
 }
