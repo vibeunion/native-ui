@@ -2762,6 +2762,90 @@ pub fn Ui(comptime Msg: type) type {
             return self.card(options, .{content});
         }
 
+        pub const QuestionFrameOptions = struct {
+            /// Accessible name for the complete response surface.
+            label: []const u8,
+            width: f32 = 0,
+            min_width: f32 = 0,
+            grow: f32 = 0,
+            padding: f32 = 16,
+            gap: f32 = 12,
+        };
+
+        pub const QuestionOptionsLayout = struct {
+            /// Accessible name for the single- or multiple-choice group.
+            label: []const u8,
+            gap: f32 = 8,
+        };
+
+        pub const QuestionActionsOptions = struct {
+            gap: f32 = 8,
+        };
+
+        /// Headless AI-question frame. The caller supplies radio/checkbox
+        /// options, text input, submit controls, validation, and every piece
+        /// of state; this helper only fixes the reusable card rhythm.
+        pub fn questionFrame(self: *Self, options: QuestionFrameOptions, children: anytype) Node {
+            const content = self.column(.{ .gap = options.gap }, children);
+            return self.card(.{
+                .width = options.width,
+                .min_width = options.min_width,
+                .grow = options.grow,
+                .padding = options.padding,
+                .semantics = .{ .role = .group, .label = options.label },
+            }, .{content});
+        }
+
+        /// Prompt plus optional muted description. No answer state lives in
+        /// this node; it is ordinary readable content inside questionFrame.
+        pub fn questionHeader(self: *Self, prompt: []const u8, description: []const u8) Node {
+            const nodes = self.arena.alloc(Node, 2) catch {
+                self.failed = true;
+                return self.column(.{}, .{});
+            };
+            nodes[0] = self.paragraph(.{}, &.{.{ .text = prompt, .weight = .medium }});
+            var count: usize = 1;
+            if (description.len > 0) {
+                nodes[count] = self.text(.{
+                    .size = .sm,
+                    .wrap = true,
+                    .style_tokens = .{ .foreground = .text_muted },
+                }, description);
+                count += 1;
+            }
+            return self.column(.{ .gap = 4 }, .{nodes[0..count]});
+        }
+
+        /// Accessible single-choice shell. Descendant radio controls share
+        /// the native roving-focus/arrow-key contract; selection stays in the
+        /// caller model and arrives through each radio's checked value.
+        pub fn questionSingleOptions(self: *Self, options: QuestionOptionsLayout, children: anytype) Node {
+            return self.radioGroup(.{
+                .gap = options.gap,
+                .semantics = .{ .role = .radiogroup, .label = options.label },
+            }, children);
+        }
+
+        /// Accessible multiple-choice shell. Descendant checkboxes remain
+        /// individually named controls while this row provides their group
+        /// label and horizontal layout.
+        pub fn questionMultipleOptions(self: *Self, options: QuestionOptionsLayout, children: anytype) Node {
+            return self.row(.{
+                .gap = options.gap,
+                .semantics = .{ .role = .group, .label = options.label },
+            }, children);
+        }
+
+        /// Trailing action row for submit, skip, cancel, or navigation
+        /// buttons. Button enabled/pending state is entirely caller-owned.
+        pub fn questionActions(self: *Self, options: QuestionActionsOptions, children: anytype) Node {
+            return self.row(.{
+                .gap = options.gap,
+                .main = .end,
+                .cross = .center,
+            }, children);
+        }
+
         pub fn collapsible(self: *Self, options: ElementOptions, children: anytype) Node {
             return self.accordion(options, children);
         }

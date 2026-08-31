@@ -70,6 +70,18 @@ The generated `src/components/ui_foundation.native` is application-owned. Use
 content. The machine-readable inventory is
 [`docs/public-ui-foundation-inventory.json`](./docs/public-ui-foundation-inventory.json).
 
+AI-assisted applications can also eject the caller-owned
+[`question` composition](./docs/AI_QUESTION_COMPONENT.md):
+
+```bash
+native eject component question /absolute/path/to/your-app
+```
+
+It provides question framing, prompt/description, single- and multiple-choice
+grouping, and a trailing actions row. Radios, checkboxes, text input,
+validation, submission effects, provider state, and approval authority remain
+in the application's own `Model`/`Msg` loop.
+
 Consumers that must remain on Native SDK 0.9.5 can apply the explicitly
 non-active [`0.9.5 UI compatibility artifact`](./patches/compat/native-sdk-0.9.5-ui-foundation.patch)
 after the runtime and compiler patches from distribution `15fd874`. Its exact

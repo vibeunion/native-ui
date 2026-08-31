@@ -21,13 +21,18 @@ const canvas = native_sdk.canvas;
 
 const stepper_component = @import("stepper.zig");
 const timeline_item_component = @import("timeline_item.zig");
+const question_template = @embedFile("question.native");
 const timeline_template = @embedFile("timeline.native");
 const ui_foundation_template = @embedFile("ui_foundation.native");
 
 /// A stand-in app model/message pair: the composites under test bind no
 /// model state themselves (their inputs arrive as options/args), so an
 /// empty model and one payload-carrying message tag cover the surface.
-const Model = struct {};
+const Model = struct {
+    one: u32 = 1,
+    two: u32 = 2,
+    three: u32 = 3,
+};
 const Msg = union(enum) { open: u32 };
 const Ui = canvas.Ui(Msg);
 
@@ -212,4 +217,122 @@ test "the public UI foundation templates are headless and resolve through the re
     try testing.expectEqual(@as(f32, 0), tree.root.children[2].layout.grow);
     try testing.expectEqual(canvas.WidgetKind.panel, tree.root.children[3].kind);
     try testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
+}
+
+test "the ejected question templates build the library question composition's exact tree" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const source =
+        "<import src=\"components/question.native\"/>\n" ++
+        "<use template=\"question-frame\" label=\"Deployment target\" width=\"420\">\n" ++
+        "  <use template=\"question-header\" prompt=\"Where should we deploy?\" description=\"Choose one region or add context.\" />\n" ++
+        "  <use template=\"question-single-options\" label=\"Deployment region\">\n" ++
+        "    <radio checked=\"true\" on-change=\"open:{one}\">Washington, D.C.</radio>\n" ++
+        "    <radio on-change=\"open:{two}\">San Francisco</radio>\n" ++
+        "  </use>\n" ++
+        "  <textarea label=\"Additional context\" placeholder=\"Optional details\" />\n" ++
+        "  <use template=\"question-actions\"><button variant=\"primary\" on-press=\"open:{three}\">Answer</button></use>\n" ++
+        "</use>\n";
+    const files = [_]canvas.ui_markup.SourceFile{
+        .{ .path = "components/question.native", .source = question_template },
+    };
+
+    var template_ui = Ui.init(arena);
+    const template_tree = try buildMarkupTree(arena, &template_ui, source, &files);
+
+    var library_ui = Ui.init(arena);
+    const library_tree = try library_ui.finalize(library_ui.questionFrame(.{
+        .label = "Deployment target",
+        .width = 420,
+    }, .{
+        library_ui.questionHeader("Where should we deploy?", "Choose one region or add context."),
+        library_ui.questionSingleOptions(.{ .label = "Deployment region" }, .{
+            library_ui.radio(.{ .text = "Washington, D.C.", .checked = true, .on_change = .{ .open = 1 } }),
+            library_ui.radio(.{ .text = "San Francisco", .on_change = .{ .open = 2 } }),
+        }),
+        library_ui.textarea(.{ .placeholder = "Optional details", .semantics = .{ .label = "Additional context" } }),
+        library_ui.questionActions(.{}, .{
+            library_ui.button(.{ .variant = .primary, .on_press = .{ .open = 3 } }, "Answer"),
+        }),
+    }));
+
+    try testing.expectEqualDeep(library_tree.root, template_tree.root);
+    try testing.expectEqualDeep(library_tree.handlers, template_tree.handlers);
+    try testing.expectEqual(canvas.WidgetKind.card, template_tree.root.kind);
+    try testing.expectEqual(canvas.WidgetRole.group, template_tree.root.semantics.role);
+    try testing.expectEqualStrings("Deployment target", template_tree.root.semantics.label);
+    try testing.expectEqual(@as(usize, 1), template_tree.root.children.len);
+    const content = template_tree.root.children[0];
+    try testing.expectEqual(@as(usize, 4), content.children.len);
+    try testing.expectEqual(canvas.WidgetRole.radiogroup, content.children[1].semantics.role);
+    try testing.expectEqual(Msg{ .open = 2 }, template_tree.msgFor(content.children[1].children[1].id, .change).?);
+    try testing.expectEqual(Msg{ .open = 3 }, template_tree.msgForPointer(content.children[3].children[0].id, .up).?);
+}
+
+test "the question templates preserve default frame spacing and an optional description" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const source =
+        "<import src=\"components/question.native\"/>\n" ++
+        "<use template=\"question-frame\" label=\"Confirmation\">\n" ++
+        "  <use template=\"question-header\" prompt=\"Proceed?\" />\n" ++
+        "</use>\n";
+    const files = [_]canvas.ui_markup.SourceFile{
+        .{ .path = "components/question.native", .source = question_template },
+    };
+
+    var template_ui = Ui.init(arena);
+    const template_tree = try buildMarkupTree(arena, &template_ui, source, &files);
+    var library_ui = Ui.init(arena);
+    const library_tree = try library_ui.finalize(library_ui.questionFrame(.{ .label = "Confirmation" }, .{
+        library_ui.questionHeader("Proceed?", ""),
+    }));
+
+    try testing.expectEqualDeep(library_tree.root, template_tree.root);
+    try testing.expectEqual(@as(f32, 16), template_tree.root.layout.padding.top);
+    try testing.expectEqual(@as(f32, 0), template_tree.root.layout.min_size.width);
+    try testing.expectEqual(@as(f32, 0), template_tree.root.layout.max_size.width);
+    try testing.expectEqual(@as(f32, 0), template_tree.root.layout.grow);
+    const content = template_tree.root.children[0];
+    try testing.expectEqual(@as(f32, 12), content.layout.gap);
+    try testing.expectEqual(@as(usize, 1), content.children[0].children.len);
+}
+
+test "the question multiple-options template preserves checkbox semantics and caller messages" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const source =
+        "<import src=\"components/question.native\"/>\n" ++
+        "<use template=\"question-multiple-options\" label=\"Project features\" gap=\"10\">\n" ++
+        "  <checkbox checked=\"true\" on-toggle=\"open:{one}\">Authentication</checkbox>\n" ++
+        "  <checkbox on-toggle=\"open:{two}\">Payments</checkbox>\n" ++
+        "</use>\n";
+    const files = [_]canvas.ui_markup.SourceFile{
+        .{ .path = "components/question.native", .source = question_template },
+    };
+
+    var template_ui = Ui.init(arena);
+    const template_tree = try buildMarkupTree(arena, &template_ui, source, &files);
+
+    var library_ui = Ui.init(arena);
+    const library_tree = try library_ui.finalize(library_ui.questionMultipleOptions(.{
+        .label = "Project features",
+        .gap = 10,
+    }, .{
+        library_ui.checkbox(.{ .text = "Authentication", .checked = true, .on_toggle = .{ .open = 1 } }),
+        library_ui.checkbox(.{ .text = "Payments", .on_toggle = .{ .open = 2 } }),
+    }));
+
+    try testing.expectEqualDeep(library_tree.root, template_tree.root);
+    try testing.expectEqualDeep(library_tree.handlers, template_tree.handlers);
+    try testing.expectEqual(canvas.WidgetRole.group, template_tree.root.semantics.role);
+    try testing.expectEqualStrings("Project features", template_tree.root.semantics.label);
+    try testing.expectEqual(canvas.WidgetKind.checkbox, template_tree.root.children[0].kind);
+    try testing.expectEqual(Msg{ .open = 2 }, template_tree.msgForPointer(template_tree.root.children[1].id, .up).?);
 }

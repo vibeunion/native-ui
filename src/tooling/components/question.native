@@ -1,0 +1,48 @@
+<!-- Headless AI question composition.
+     Ejected from the Native SDK component library.
+
+     This file now belongs to your app: edit it freely, and SDK updates
+     never touch it. The templates only own layout and semantics. Your
+     Model/Msg/update loop owns selected values, freeform text, validation,
+     pending state, submission effects, and any provider or approval policy.
+
+     Use radio controls inside question-single-options, checkboxes inside
+     question-multiple-options, and an ordinary textarea for a freeform or
+     mixed response. Every control keeps its own typed message.
+
+     Deleting this file costs nothing; `native eject component question`
+     writes it again. -->
+<template name="question-frame" args="label padding=16 gap=12 width=0 minwidth=0 grow=0">
+  <card padding="{padding}" width="{width}" min-width="{minwidth}" grow="{grow}" role="group" label="{label}">
+    <column gap="{gap}">
+      <slot/>
+    </column>
+  </card>
+</template>
+
+<template name="question-header" args="prompt description=">
+  <column gap="4">
+    <text><span weight="medium">{prompt}</span></text>
+    <if test="{description}">
+      <text size="sm" foreground="text_muted" wrap="true">{description}</text>
+    </if>
+  </column>
+</template>
+
+<template name="question-single-options" args="label gap=8">
+  <radio-group gap="{gap}" role="radiogroup" label="{label}">
+    <slot/>
+  </radio-group>
+</template>
+
+<template name="question-multiple-options" args="label gap=8">
+  <row gap="{gap}" role="group" label="{label}">
+    <slot/>
+  </row>
+</template>
+
+<template name="question-actions" args="gap=8">
+  <row gap="{gap}" main="end" cross="center">
+    <slot/>
+  </row>
+</template>
