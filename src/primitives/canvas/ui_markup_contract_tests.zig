@@ -203,6 +203,15 @@ const fixtures = [_]Fixture{
         .expect = null,
     },
     .{
+        .name = "digit-only text attributes remain text",
+        .source =
+        \\<column padding="8">
+        \\  <text-field placeholder="123" label="456" />
+        \\</column>
+        ,
+        .expect = null,
+    },
+    .{
         .name = "a missing model field rejects",
         .source =
         \\<column>
@@ -863,6 +872,55 @@ test "app: icon references check against the contract's registered icon list" {
     // The markup-side prefix and the contract's std-only mirror cannot
     // drift.
     try testing.expectEqualStrings(markup.app_icon_prefix, contract.app_icon_prefix);
+}
+
+test "segmented-control bindings and messages check through the model contract" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const document = try parseFixture(arena,
+        \\<row>
+        \\  <segmented-control selected="{active}" icon="settings" on-press="add">Settings</segmented-control>
+        \\</row>
+    );
+    var usage = try contract.Usage.init(arena, &model_contract);
+    try testing.expectEqual(null, try contract.checkDocument(arena, document, &model_contract, &usage));
+}
+
+test "the contract checker validates a forwarded template-root press" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const document = try parseFixture(arena,
+        \\<template name="item" args="title">
+        \\  <timeline-item title="{title}" />
+        \\</template>
+        \\<row>
+        \\  <use template="item" title="Build" on-press="remove:{profile.age}" />
+        \\</row>
+    );
+    try testing.expectEqual(null, try contract.checkDocument(arena, document, &model_contract, null));
+}
+test "the contract checker validates stepper slot content in the consumer scope" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const document = try parseFixture(arena,
+        \\<template name="stepper" args="active">
+        \\  <stepper active="{active}">
+        \\    <slot/>
+        \\  </stepper>
+        \\</template>
+        \\<row>
+        \\  <use template="stepper" active="{count}">
+        \\    <step>{missing}</step>
+        \\  </use>
+        \\</row>
+    );
+    const message = (try contractMessage(arena, document, null)).?;
+    try testing.expect(std.mem.startsWith(u8, message, contract.binding_model_message));
 }
 
 // ------------------------------------------------------------ dead state

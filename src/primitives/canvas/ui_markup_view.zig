@@ -96,6 +96,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
         const ScopeEntry = struct {
             name: []const u8,
             payload: Payload,
+            defaulted: bool = false,
 
             const Payload = union(enum) {
                 item: struct { type_index: usize, ptr: *const anyopaque },
@@ -194,7 +195,18 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
         /// funnels through here, so the stamp covers the whole vocabulary
         /// in one place. `finalize` pairs the stamp with the structural id.
         fn buildElement(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode) BuildError!Ui.Node {
-            var built = try self.buildElementInner(ui, scope, node);
+            return self.buildElementForwardedPress(ui, scope, node, null);
+        }
+
+        fn buildElementForwardedPress(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode, forwarded_press: ?MsgT) BuildError!Ui.Node {
+            var built = try self.buildElementInner(ui, scope, node, forwarded_press);
+            if (forwarded_press) |msg| {
+                // A press declared on <use> belongs to the expanded root.
+                // Set it after the root-specific builder has run so generic
+                // template roots become interactive as well.
+                built.on_press = msg;
+                built.widget.semantics.focusable = true;
+            }
             if (ui.provenance_sink != null) {
                 const source = try ui.arena.create(ui_provenance.NodeSource);
                 source.* = .{
@@ -209,7 +221,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
             return built;
         }
 
-        fn buildElementInner(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode) BuildError!Ui.Node {
+        fn buildElementInner(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode, forwarded_press: ?MsgT) BuildError!Ui.Node {
             if (std.mem.eql(u8, node.name, "markdown")) {
                 return self.buildMarkdown(ui, scope, node);
             }
@@ -227,7 +239,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                 return self.buildTimeline(ui, scope, node);
             }
             if (std.mem.eql(u8, node.name, "timeline-item")) {
-                return self.buildTimelineItem(ui, scope, node);
+                return self.buildTimelineItem(ui, scope, node, forwarded_press);
             }
             if (std.mem.eql(u8, node.name, "chart")) {
                 return self.buildChart(ui, scope, node);
@@ -970,17 +982,46 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
             }
             if (!has_active) return self.failNode(node, markup.stepper_active_message);
 
-            const steps = try ui.arena.alloc(Ui.StepperStep, node.children.len);
-            for (node.children, 0..) |child, index| {
-                if (child.kind != .element or !std.mem.eql(u8, child.name, "step")) {
-                    return self.failNode(child, markup.stepper_children_message);
+            const is_slotted = node.children.len == 1 and node.children[0].kind == .slot_block;
+            const capture = if (is_slotted) scope.slotCapture() else null;
+            if (is_slotted and capture == null) return self.failNode(node.children[0], markup.slot_outside_template_message);
+            const step_nodes = if (capture) |captured| captured.nodes else node.children;
+            const steps = try ui.arena.alloc(Ui.StepperStep, step_nodes.len);
+            if (capture) |captured| {
+                // Slot content is authored at the use site. Temporarily
+                // restore that consumer scope so interpolated step labels
+                // see the same loop variables as a direct stepper.
+                var saved_entries: [max_scope_depth]ScopeEntry = undefined;
+                const saved_len = scope.len;
+                const saved_floor = scope.floor;
+                const saved_ctx = scope.template_ctx;
+                for (scope.entries[captured.len..saved_len], 0..) |entry, offset| saved_entries[offset] = entry;
+                scope.len = captured.len;
+                scope.floor = captured.floor;
+                scope.template_ctx = captured.template_ctx;
+                defer {
+                    for (saved_entries[0 .. saved_len - captured.len], 0..) |entry, offset| scope.entries[captured.len + offset] = entry;
+                    scope.len = saved_len;
+                    scope.floor = saved_floor;
+                    scope.template_ctx = saved_ctx;
                 }
-                for (child.attrs) |attribute| {
-                    if (!std.mem.eql(u8, attribute.name, "kind")) {
-                        return self.failNode(child, markup.step_attr_message);
+                for (step_nodes, 0..) |child, index| {
+                    if (child.kind != .element or !std.mem.eql(u8, child.name, "step")) return self.failNode(child, markup.stepper_children_message);
+                    for (child.attrs) |attribute| if (!std.mem.eql(u8, attribute.name, "kind")) return self.failNode(child, markup.step_attr_message);
+                    steps[index] = .{ .label = try self.interpolatedText(ui, scope, child) };
+                }
+            } else {
+                for (step_nodes, 0..) |child, index| {
+                    if (child.kind != .element or !std.mem.eql(u8, child.name, "step")) {
+                        return self.failNode(child, markup.stepper_children_message);
                     }
+                    for (child.attrs) |attribute| {
+                        if (!std.mem.eql(u8, attribute.name, "kind")) {
+                            return self.failNode(child, markup.step_attr_message);
+                        }
+                    }
+                    steps[index] = .{ .label = try self.interpolatedText(ui, scope, child) };
                 }
-                steps[index] = .{ .label = try self.interpolatedText(ui, scope, child) };
             }
             return ui.stepper(options, steps);
         }
@@ -1115,7 +1156,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
         /// `<timeline-item title="{entry.title}" description="..."
         /// meta="..." variant="primary" on-press="open_step:{entry.slot}"/>`:
         /// one composite ledger item; mirrors `Ui.timelineItem`.
-        fn buildTimelineItem(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode) BuildError!Ui.Node {
+        fn buildTimelineItem(self: *Self, ui: *Ui, scope: *Scope, node: markup.MarkupNode, forwarded_press: ?MsgT) BuildError!Ui.Node {
             if (node.children.len != 0) {
                 return self.failNode(node.children[0], markup.timeline_item_children_message);
             }
@@ -1187,6 +1228,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                 return self.failNode(node, markup.timeline_item_attr_message);
             }
             if (!has_title) return self.failNode(node, markup.timeline_item_title_message);
+            if (forwarded_press) |msg| options.on_press = msg;
             return ui.timelineItem(options);
         }
 
@@ -1569,10 +1611,20 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
 
             for (node.attrs) |attribute| {
                 if (std.mem.eql(u8, attribute.name, "template")) continue;
+                if (std.mem.eql(u8, attribute.name, "on-press")) continue;
+                if (std.mem.startsWith(u8, attribute.name, "on-")) {
+                    return self.failNode(node, markup.use_forwarded_event_message);
+                }
                 if (!markup.templateDeclaresArg(template_node, attribute.name)) {
                     return self.failNode(node, markup.use_extra_arg_message);
                 }
             }
+
+            const forwarded_press = if (node.attrEntry("on-press")) |attribute| blk: {
+                var scratch: Ui.ElementOptions = .{};
+                try self.applyMessageAttr(scope, node, &scratch, attribute);
+                break :blk scratch.on_press;
+            } else null;
 
             // Evaluate every arg against the pristine use-site scope before
             // any entry is pushed, so args cannot see each other.
@@ -1601,7 +1653,11 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                     }
                     break :blk .{ .value = literalValue(default) };
                 } else return self.failNode(node, markup.use_missing_arg_message);
-                scope.entries[saved_len + arg_count] = .{ .name = arg.name, .payload = payload };
+                scope.entries[saved_len + arg_count] = .{
+                    .name = arg.name,
+                    .payload = payload,
+                    .defaulted = node.attrEntry(arg.name) == null and arg.default != null,
+                };
                 arg_count += 1;
             }
             // The slot capture: the use-site children plus the scope state
@@ -1647,7 +1703,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                 scope.template_ctx = saved_ctx;
                 scope.source_chain = saved_chain;
             }
-            return self.buildElement(ui, scope, template_node.children[0]);
+            return self.buildElementForwardedPress(ui, scope, template_node.children[0], forwarded_press);
         }
 
         /// A template arg's scope payload: a `{binding}` naming an iterable
@@ -1685,7 +1741,7 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                     }
                 }
             }
-            return .{ .value = try self.evalAttrExpression(scope, node, attribute) };
+            return .{ .value = try self.evalUnclassifiedExpression(scope, node, attribute) };
         }
 
         fn failPayload(self: *Self, node: markup.MarkupNode, message: []const u8) BuildError {
@@ -1849,8 +1905,8 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
         /// runtime (`Cmd.imageLoad`, `fx.loadImage`,
         /// `fx.registerImageBytes`) — the id is model data, never a
         /// markup literal, and 0 draws nothing (an avatar keeps its
-        /// initials fallback). The remaining image-bearing widget
-        /// (icon-button) stays a Zig view.
+        /// initials fallback). Image-backed buttons remain a separate
+        /// asset-lifecycle proposal.
         fn applyImageAttr(self: *Self, scope: *Scope, node: markup.MarkupNode, options: *Ui.ElementOptions, attribute: markup.MarkupAttr) BuildError!void {
             if (!std.mem.eql(u8, node.name, "avatar") and !std.mem.eql(u8, node.name, "image")) {
                 return self.failVoid(node, markup.image_binding_element_message);
@@ -2071,13 +2127,23 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
             }
         }
 
-        fn attrKey(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr) BuildError!canvas.UiKey {
+        fn attrKey(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr) BuildError!?canvas.UiKey {
+            const omitted_default = switch (markup.attrTyped(attribute)) {
+                .binding => |path| if (scope.lookup(pathHead(path))) |entry|
+                    entry.defaulted and pathTail(path) == null
+                else
+                    false,
+                else => false,
+            };
             const value = try self.evalAttrExpression(scope, node, attribute);
             return switch (value) {
                 // Bijective like itemKey: a negative integer key is a
                 // distinct identity, never a trap.
                 .integer => |int| canvas.uiKey(@as(u64, @bitCast(int))),
-                .string => |text| canvas.uiKey(text),
+                // Empty defaults are the template-language spelling for an
+                // omitted optional key. This lets ejected templates forward
+                // key/global-key without changing unkeyed identity.
+                .string => |text| if (text.len == 0 and omitted_default) null else canvas.uiKey(text),
                 else => self.failKey(node, "keys must be integers or strings"),
             };
         }
@@ -2377,9 +2443,12 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
         /// classified (and its expression tree parsed) once at document
         /// level, not per frame per use — the typed-document pass's whole
         /// point for the interpreter.
-        fn evalAttrExpression(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr) BuildError!Value {
+        fn evalAttributeExpression(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr, attribute_aware: bool) BuildError!Value {
             return switch (markup.attrTyped(attribute)) {
-                .literal => |text| literalValue(text),
+                .literal => |text| if (attribute_aware)
+                    literalValueForAttribute(text, attribute.name)
+                else
+                    literalValue(text),
                 .binding => |path| try self.evalBinding(scope, node, path, true),
                 // Arena-computed bindings are excluded from equality on
                 // purpose: comparing freshly formatted strings is a smell —
@@ -2391,6 +2460,14 @@ pub fn MarkupView(comptime ModelT: type, comptime MsgT: type) type {
                 .expression => |form| try self.evalExpressionForm(scope, node, form),
                 .message, .invalid => self.failValue(node, markup.invalid_expression_message),
             };
+        }
+
+        fn evalAttrExpression(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr) BuildError!Value {
+            return self.evalAttributeExpression(scope, node, attribute, true);
+        }
+
+        fn evalUnclassifiedExpression(self: *Self, scope: *Scope, node: markup.MarkupNode, attribute: markup.MarkupAttr) BuildError!Value {
+            return self.evalAttributeExpression(scope, node, attribute, false);
         }
 
         /// A typed expression: use the pre-parsed tree when the pass
@@ -2827,6 +2904,7 @@ pub fn valueOf(comptime T: type, value: T) ?Value {
 }
 
 pub const literalValue = reflect.literalValue;
+pub const literalValueForAttribute = reflect.literalValueForAttribute;
 
 /// Display-text formatting for interpolation and `++` concatenation:
 /// defined once in the expression core so both engines (and the evaluator

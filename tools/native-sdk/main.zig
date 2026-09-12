@@ -733,7 +733,9 @@ fn runCheck(allocator: std.mem.Allocator, io: std.Io, env_map: *std.process.Envi
     try collectMarkupFiles(allocator, io, "src", &markup_files);
     var outcome = markup_cli.CheckOutcome{};
     if (markup_files.items.len > 0) {
-        outcome = try markup_cli.checkFiles(allocator, io, markup_files.items);
+        outcome = try markup_cli.checkFiles(allocator, io, markup_files.items, .{
+            .import_root_for_file = markup_cli.importRootForFile,
+        });
         if (outcome.failures > 0) return error.MarkupCheckFailed;
     }
 
@@ -820,13 +822,29 @@ fn runEjectComponent(io: std.Io, name: []const u8) !void {
         }
         std.process.exit(1);
     };
-    tooling.eject_components.eject(io, ".", component) catch |err| switch (err) {
+    const core = switch (tooling.ts_core.detect(io)) {
+        .ts => tooling.eject_components.ComponentCore.ts,
+        .zig => tooling.eject_components.ComponentCore.zig,
+        .both => return tooling.ts_core.failBothCores(),
+        .neither => {
+            std.debug.print("no app core found — `native eject component` needs src/core.ts or src/main.zig\n", .{});
+            return error.MissingManifest;
+        },
+    };
+    const selection = tooling.eject_components.forCore(component, core) orelse {
+        std.debug.print(
+            "cannot eject {s} into this app's core — no compatible component form is available; compose it in the app's existing authoring tier\n",
+            .{component.name},
+        );
+        std.process.exit(1);
+    };
+    tooling.eject_components.ejectSelection(io, ".", selection) catch |err| switch (err) {
         error.AlreadyEjected => {
-            std.debug.print("already ejected at {s} - delete it to re-eject\n", .{component.path});
+            std.debug.print("already ejected at {s} - delete it to re-eject\n", .{selection.path});
             std.process.exit(1);
         },
         error.WriteFailed => {
-            std.debug.print("cannot write {s} — check the app directory is writable\n", .{component.path});
+            std.debug.print("cannot write {s} — check the app directory is writable\n", .{selection.path});
             std.process.exit(1);
         },
     };
@@ -836,7 +854,7 @@ fn runEjectComponent(io: std.Io, name: []const u8) !void {
         \\library form keeps working wherever you have not migrated. Run
         \\`native check` to validate the app afterwards.
         \\
-    , .{ component.path, component.form });
+    , .{ selection.path, selection.form });
 }
 
 fn initAppName(allocator: std.mem.Allocator, io: std.Io, destination: []const u8) !struct { []const u8, bool } {

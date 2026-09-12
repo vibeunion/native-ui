@@ -31,6 +31,7 @@ pub const element_docs = [_]Doc{
     .{ .name = "text", .doc = "Text leaf; content supports {} interpolation. Line policy via wrap: wrap=\"true\" word-wraps, wrap=\"false\" clips to one honest line. size takes the typography rungs heading|display for section headings and hero stats." },
     .{ .name = "badge", .doc = "Text leaf badge; content supports {} interpolation." },
     .{ .name = "button", .doc = "Text-bearing control; the label is the text content. Dispatch with on-press. icon draws a vector icon inline before the label (icon-only when the content is empty; give it a label) — one hit target, one enabled/disabled tint." },
+    .{ .name = "segmented-control", .doc = "Standalone exclusive-choice trigger; the label is the text content, selected marks the active item, and icon may add a vector icon. Compose items with ordinary markup, for, or a template." },
     .{ .name = "checkbox", .doc = "Text-bearing value control; the visible label is text content (or text=), bind checked, dispatch with on-toggle." },
     .{ .name = "radio", .doc = "Text-bearing single-choice value control; the visible label is text content (or text=), bind checked or selected. Selection dispatches on-change when bound, then on-toggle, then on-press for compatibility." },
     .{ .name = "toggle", .doc = "Text-bearing toggle control; the label is the text content." },
@@ -95,7 +96,7 @@ pub const structure_docs = [_]Doc{
     .{ .name = "if", .doc = "Structure tag: renders children when test={binding} or {a == b} is true." },
     .{ .name = "else", .doc = "Structure tag: must directly follow an if (renders when the test is false) or a for (renders when the iterable is empty)." },
     .{ .name = "template", .doc = "Top-level template definition (before the view root): name, optional args (name or name=default; defaults are literals), exactly one element child, at most one <slot/>." },
-    .{ .name = "use", .doc = "Expands a template in place: template names an earlier definition, other attributes must match its args exactly (defaulted args may be omitted). Children are slot content: built in the consumer's scope and inserted at the template's <slot/>." },
+    .{ .name = "use", .doc = "Expands a template in place: template names an earlier definition, value attributes must match its args exactly (defaulted args may be omitted), and on-press may forward a typed message to the expanded root. Children are slot content: built in the consumer's scope and inserted at the template's <slot/>." },
     .{ .name = "import", .doc = "Top of the file, before templates: <import src=\"components/cards.native\"/> splices a component file's templates (transitively) before this file's own. Paths resolve relative to this file, under the markup root." },
     .{ .name = "slot", .doc = "Template bodies only, at most one: marks where use-site children are inserted. Attribute-less leaf; a use with no children renders it empty." },
 };
@@ -132,7 +133,7 @@ pub const attribute_docs = [_]Doc{
     .{ .name = "label", .doc = "Accessible name; when set it REPLACES the element's text as the announced name - screen readers and automation snapshots see the label, never the text it shadows." },
     .{ .name = "autofocus", .doc = "Focusable controls only: moves keyboard focus to the element when it mounts or when the value turns on (edge-triggered - holding it true never re-steals focus), revealing it through ancestor scroll regions first. For editable text, an absent selection becomes a caret collapsed at the end of the text and the editor scrolls to reveal it; an existing selection is preserved. The TEA way to focus an editor on create." },
     .{ .name = "submit-on-enter", .doc = "textarea only: true makes plain Enter dispatch on-submit while Shift+Enter inserts a newline; Cmd/Ctrl+Enter still submits. False or absent keeps the multiline default where Enter inserts and submission uses the primary chord." },
-    .{ .name = "icon", .doc = "button, toggle-button, list-item, menu-item: vector icon drawn inline (buttons/toggle-buttons before the label, list/menu items as a leading slot): a built-in name (comptime-validated against canvas.icons.known_icon_names, e.g. save, plus, refresh-cw), an app-registered app:<name>, or one {binding} resolving to such a name. Icon-only buttons when the content is empty — add a label. One hit target, one enabled/disabled tint." },
+    .{ .name = "icon", .doc = "button, toggle-button, list-item, menu-item, segmented-control: vector icon drawn inline (buttons/toggle-buttons before the label, list/menu items as a leading slot): a built-in name (comptime-validated against canvas.icons.known_icon_names, e.g. save, plus, refresh-cw), an app-registered app:<name>, or one {binding} resolving to such a name. Icon-only buttons when the content is empty — add a label. One hit target, one enabled/disabled tint." },
     .{ .name = "icon-placement", .doc = "Icon slot side on label-bearing buttons/toggle-buttons: leading (default) draws the icon before the label, trailing after it — the next-page chevron. Icon-only buttons center the glyph regardless." },
     .{ .name = "window-drag", .doc = "Marks the element as a window-drag surface (the hidden-titlebar pattern): pressing its background - or plain text/icons inside - moves the window; double-click zooms per the OS convention. Buttons and other press-claiming children inside stay clickable. macOS-only; elsewhere the press is dead space." },
     .{ .name = "overscroll", .doc = "scroll only: edge behavior of the region. none pins scrolling at the content edges (the shipped default via the ScrollPhysics.overscroll token), rubber_band lets this region bounce past them, default follows the token. Honored by the engine's scroll physics and the native OS scroller alike." },
@@ -149,7 +150,7 @@ pub const attribute_docs = [_]Doc{
     .{ .name = "accent-foreground", .doc = "Accent foreground color token (literal ColorTokens field name, e.g. accent_text)." },
     .{ .name = "border-color", .doc = "Border color token (literal ColorTokens field name, e.g. border)." },
     .{ .name = "focus-ring", .doc = "Focus ring color token (literal ColorTokens field name, e.g. focus_ring)." },
-    .{ .name = "radius", .doc = "Corner radius token (literal RadiusTokens field name: sm, md, lg, xl)." },
+    .{ .name = "radius", .doc = "Corner radius token (literal RadiusTokens field name: sm, md, lg, xl, none)." },
 };
 
 pub const template_attr_docs = [_]Doc{

@@ -774,12 +774,15 @@ const Checker = struct {
     /// against the contract and the whole expression run through the
     /// shared type checker with those kinds — `{count > 'a'}` fails here
     /// with the evaluator's teaching message and the model field's type.
-    fn attrKind(self: *Checker, node: markup.MarkupNode, attribute: markup.MarkupAttr, raw: []const u8) CheckErr!?ValueKind {
+    fn expressionKind(self: *Checker, node: markup.MarkupNode, attribute: markup.MarkupAttr, raw: []const u8, attribute_aware: bool) CheckErr!?ValueKind {
         const expression = markup.parseAttrExpression(raw) orelse {
             return self.failAttr(node, attribute, markup.invalid_expression_message);
         };
         return switch (expression) {
-            .literal => |text| expr.kindOf(reflect.literalValue(text)),
+            .literal => |text| expr.kindOf(if (attribute_aware)
+                reflect.literalValueForAttribute(text, attribute.name)
+            else
+                reflect.literalValue(text)),
             .binding => |path| (try self.resolveBinding(node, path, true)).kind,
             .equals => |sides| blk: {
                 // Arena-computed bindings are excluded from equality on
@@ -791,6 +794,14 @@ const Checker = struct {
             },
             .expression => |inner| try self.exprTreeKind(node, inner),
         };
+    }
+
+    fn attrKind(self: *Checker, node: markup.MarkupNode, attribute: markup.MarkupAttr, raw: []const u8) CheckErr!?ValueKind {
+        return self.expressionKind(node, attribute, raw, true);
+    }
+
+    fn unclassifiedKind(self: *Checker, node: markup.MarkupNode, attribute: markup.MarkupAttr, raw: []const u8) CheckErr!?ValueKind {
+        return self.expressionKind(node, attribute, raw, false);
     }
 
     fn exprTreeKind(self: *Checker, node: markup.MarkupNode, inner: []const u8) CheckErr!?ValueKind {
@@ -1032,6 +1043,15 @@ const Checker = struct {
         const template_node = self.document.templates[template_index];
         if (template_node.children.len != 1 or template_node.children[0].kind != .element) return;
 
+        // A use-site press is forwarded to the expanded template root. It
+        // is a message expression, not a template argument, and its payload
+        // resolves in the consumer's scope.
+        for (node.attrs) |attribute| {
+            if (std.mem.eql(u8, attribute.name, "on-press")) {
+                try self.checkMessageAttr(node, attribute);
+            }
+        }
+
         // Evaluate every arg's kind against the pristine use-site scope
         // before any entry is pushed, so args cannot see each other.
         const saved_len = self.len;
@@ -1111,7 +1131,7 @@ const Checker = struct {
                 }
             }
         }
-        return .{ .value = try self.attrKind(node, attribute, attribute.value) };
+        return .{ .value = try self.unclassifiedKind(node, attribute, attribute.value) };
     }
 
     fn checkSlot(self: *Checker, node: markup.MarkupNode) CheckErr!void {
@@ -1242,6 +1262,9 @@ const Checker = struct {
             }
             if (std.mem.eql(u8, attribute.name, "image")) {
                 // Runtime image ids are model integers (engine parity).
+                if (!std.mem.eql(u8, node.name, "avatar") and !std.mem.eql(u8, node.name, "image")) {
+                    return self.failAttr(node, attribute, markup.image_binding_element_message);
+                }
                 const expression = markup.parseAttrExpression(attribute.value) orelse continue;
                 if (expression != .binding) continue;
                 const resolved = try self.resolveBinding(node, expression.binding, true);
@@ -1436,6 +1459,12 @@ const Checker = struct {
             }
         }
         for (node.children) |child| {
+            if (child.kind == .slot_block) {
+                // Ejected steppers pass their actual children through the
+                // slot. Check those children in the consumer's scope.
+                try self.checkSlot(child);
+                continue;
+            }
             for (child.children) |run| {
                 if (run.kind == .text) try self.checkTextRun(run);
             }

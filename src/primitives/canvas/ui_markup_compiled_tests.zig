@@ -92,6 +92,65 @@ const InboxUi = canvas.Ui(fixture.Msg);
 const InboxInterpreter = markup_view.MarkupView(fixture.Model, fixture.Msg);
 const InboxCompiled = canvas.CompiledMarkupView(fixture.Model, fixture.Msg, fixture.inbox_markup_source);
 
+const SegmentedCompiled = canvas.CompiledMarkupView(fixture.SegmentedModel, fixture.SegmentedMsg, fixture.segmented_markup_source);
+
+const EjectedStepperDefaultMarkup =
+    \\<template name="stepper" args="active key= global_key= label=">
+    \\  <stepper active="{active}" key="{key}" global-key="{global_key}" label="{label}">
+    \\    <slot/>
+    \\  </stepper>
+    \\</template>
+    \\<use template="stepper" active="1"><step>Plan</step><step>Ship</step></use>
+;
+const EjectedStepperDefaultCompiled = canvas.CompiledMarkupView(fixture.TemplateModel, fixture.TemplateMsg, EjectedStepperDefaultMarkup);
+
+const ForwardedModel = struct { id: u32 = 7 };
+const ForwardedMsg = union(enum) { open: u32 };
+const ForwardedUi = canvas.Ui(ForwardedMsg);
+const ForwardedCompiled = canvas.CompiledMarkupView(ForwardedModel, ForwardedMsg,
+    \\<template name="item" args="title">
+    \\  <timeline-item title="{title}" />
+    \\</template>
+    \\<use template="item" title="Build" on-press="open:{id}" />
+);
+test "compiled segmented-control and vector icon button match the interpreter" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const model = fixture.SegmentedModel{};
+    var interpreter_view = try markup_view.MarkupView(fixture.SegmentedModel, fixture.SegmentedMsg).init(arena, fixture.segmented_markup_source);
+    var interpreter_ui = fixture.SegmentedUi.init(arena);
+    const interpreted = try interpreter_ui.finalize(try interpreter_view.build(&interpreter_ui, &model));
+    var compiled_ui = fixture.SegmentedUi.init(arena);
+    const compiled = try compiled_ui.finalize(SegmentedCompiled.build(&compiled_ui, &model));
+    try expectSameTree(fixture.SegmentedMsg, interpreted, compiled);
+    try testing.expectEqual(canvas.WidgetKind.segmented_control, compiled.root.children[0].kind);
+    try testing.expectEqualStrings("settings", compiled.root.children[2].icon);
+}
+
+test "compiled ejected stepper defaults preserve unkeyed identity" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const model = fixture.TemplateModel{};
+    const labels = [_]TemplateUi.StepperStep{ .{ .label = "Plan" }, .{ .label = "Ship" } };
+
+    var library_ui = TemplateUi.init(arena);
+    const library = try library_ui.finalize(library_ui.stepper(.{ .active = 1 }, &labels));
+    var compiled_ui = TemplateUi.init(arena);
+    const compiled = try compiled_ui.finalize(EjectedStepperDefaultCompiled.build(&compiled_ui, &model));
+    try testing.expectEqualDeep(library.root, compiled.root);
+}
+
+test "compiled template use forwards a typed root press" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var ui = ForwardedUi.init(arena);
+    const tree = try ui.finalize(ForwardedCompiled.build(&ui, &ForwardedModel{}));
+    try testing.expectEqual(ForwardedMsg{ .open = 7 }, tree.msgForPointer(tree.root.id, .up).?);
+    try testing.expectEqual(@as(usize, 1), tree.root.children.len);
+}
 const zero_card_padding_markup =
     \\<card padding="0">
     \\  <text>Flush</text>
@@ -110,6 +169,32 @@ const selection_label_content_markup =
     \\</column>
 ;
 const SelectionLabelContentCompiled = canvas.CompiledMarkupView(fixture.Model, fixture.Msg, selection_label_content_markup);
+
+const digit_text_attribute_markup =
+    \\<column padding="8">
+    \\  <text-field placeholder="123" label="456" />
+    \\</column>
+;
+const DigitTextAttributeCompiled = canvas.CompiledMarkupView(fixture.Model, fixture.Msg, digit_text_attribute_markup);
+
+test "compiled digit-only text attributes stay text while numeric attributes stay numeric" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const model = fixture.Model{};
+
+    var interpreter = try InboxInterpreter.init(arena, digit_text_attribute_markup);
+    var interpreter_ui = InboxUi.init(arena);
+    const interpreted = try interpreter_ui.finalize(try interpreter.build(&interpreter_ui, &model));
+    var compiled_ui = InboxUi.init(arena);
+    const compiled = try compiled_ui.finalize(DigitTextAttributeCompiled.build(&compiled_ui, &model));
+
+    try expectSameTree(fixture.Msg, interpreted, compiled);
+    const field = fixture.findByKind(compiled.root, .text_field).?;
+    try testing.expectEqualStrings("123", field.placeholder);
+    try testing.expectEqualStrings("456", field.semantics.label);
+    try testing.expectEqual(@as(f32, 8), compiled.root.layout.padding.top);
+}
 
 test "checkbox and radio element content builds identically in both markup engines" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);

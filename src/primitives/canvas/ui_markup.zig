@@ -810,7 +810,9 @@ pub const MessageExpression = struct {
     payload: []const u8 = "",
 };
 
-/// Parse an `on-*` attribute value: `msg` or `msg:{path}`.
+/// Parse an `on-*` attribute value: `msg` or `msg:{path}`. Event attributes
+/// on `<use>` are limited to `on-press`; the use forwards that message to
+/// the template root after resolving it in the consumer's scope.
 pub fn parseMessageExpression(value: []const u8) ?MessageExpression {
     if (std.mem.indexOfScalar(u8, value, ':')) |colon| {
         const tag = value[0..colon];
@@ -1089,10 +1091,7 @@ fn typedTextSegmentsComptime(comptime text: []const u8) []const TypedTextSegment
 /// Element names the interpreter accepts, derived from the registry
 /// (ui_schema.zig; the registry↔engine conformance tests live in
 /// ui_markup_view_tests.zig). Covers every built-in component whose shape
-/// fits the closed grammar; the deliberate exclusions (image,
-/// icon-button, data-grid, popover, menu-surface, segmented-control) are
-/// documented next to the widget-kind coverage test in
-/// ui_markup_view_tests.zig — write those as Zig view functions.
+/// fits the closed grammar, including standalone segmented-control leaves.
 pub const known_element_names = schema.element_names;
 
 /// Elements whose content is a single run of text (with `{}`
@@ -1268,7 +1267,7 @@ pub const tooltip_delay_element_message = "tooltip-delay is only supported on to
 pub const tooltip_delay_dependent_attr_message = "tooltip-delay needs anchor on the same tooltip - only an anchored tooltip is hover-shown by the runtime (a static tooltip paints whenever the view renders it), so without anchor the delay is silently inert";
 
 pub const image_binding_message = "image takes one {binding} to a u64 ImageId the app registered at runtime (Cmd.imageLoad, fx.loadImage, fx.registerImageBytes) - runtime image ids are model data, not markup literals; 0 renders nothing (an avatar falls back to its initials)";
-pub const image_binding_element_message = "image is only supported on avatar and image - the remaining image-bearing widget (icon-button) stays a Zig view (ElementOptions.image)";
+pub const image_binding_element_message = "image is only supported on avatar and image - the remaining image-bearing widget (icon-button) stays deferred until the TypeScript asset lifecycle is decided";
 pub const image_source_element_message = "source-x, source-y, source-width, and source-height are only supported on avatar and image - they crop a runtime-registered image in decoded-image pixel coordinates";
 pub const image_source_binding_message = "source-x, source-y, source-width, and source-height require the element's image binding - without a registered image the source rectangle is inert";
 pub const image_source_complete_message = "source-x, source-y, source-width, and source-height must be declared together - they form one source rectangle in decoded-image pixel coordinates";
@@ -1311,7 +1310,7 @@ pub const icon_missing_name_message = "icon requires a name attribute selecting 
 pub const icon_children_message = "icon is a leaf - it takes no children";
 
 pub const button_icon_message = "icon takes a built-in icon name drawn inside the element (see canvas.icons.known_icon_names, e.g. save, plus, refresh-cw), an app-registered app:<name> (canvas.icons.registerAppIcons), or one {binding} resolving to such a name";
-pub const button_icon_element_message = "icon is only supported on button, toggle-button, list-item, menu-item, and badge - it draws a vector icon inside the element as one hit target; for a bare icon use <icon name=\"...\"/>";
+pub const button_icon_element_message = "icon is only supported on button, toggle-button, list-item, menu-item, badge, and segmented-control - it draws a vector icon inside the element as one hit target; for a bare icon use <icon name=\"...\"/>";
 
 /// The `app:` icon namespace: the markup channel into the app's OWN
 /// registered vector icons (`canvas.icons.registerAppIcons`). Bare names
@@ -1394,8 +1393,8 @@ fn wellShapedIconName(name: []const u8) bool {
 /// enabled/disabled state). Registry-derived from the `icon_attr` element
 /// predicate; mirrors the engine kinds that consume `Widget.icon`:
 /// buttons and toggle-buttons draw it before the label (tab strips are
-/// toggle-button children, so tabs get icons through this), list items
-/// and menu items draw it as a leading slot.
+/// toggle-button children, so tabs get icons through this), list items,
+/// menu items, and segmented controls draw it as an inline slot.
 pub const known_icon_attr_element_names = schema.icon_attr_element_names;
 
 pub fn iconAttrElement(name: []const u8) bool {
@@ -1887,7 +1886,7 @@ pub const known_radius_token_names = schema.radius_token_names;
 
 pub const style_token_literal_message = "style token attributes take a literal token name - dynamic styling stays in Zig";
 pub const unknown_color_token_message = "unknown color token: color style attributes take a canvas ColorTokens field name (background, surface, surface_subtle, surface_pressed, text, text_muted, syntax_plain, syntax_comment, syntax_keyword, syntax_literal, syntax_function, syntax_property, syntax_constant, border, accent, accent_text, destructive, destructive_text, success, success_text, warning, warning_text, info, info_text, focus_ring, shadow, scrim, disabled)";
-pub const unknown_radius_token_message = "unknown radius token: radius takes a canvas RadiusTokens field name (sm, md, lg, xl)";
+pub const unknown_radius_token_message = "unknown radius token: radius takes a canvas RadiusTokens field name (sm, md, lg, xl, none)";
 
 pub const for_children_message = "for takes one or more element children (elements, use, if/else, or a nested for) - text content is only allowed inside text-bearing elements";
 pub const else_placement_message = "else must directly follow an if (renders when the test is false) or a for (renders when the iterable is empty)";
@@ -1998,6 +1997,7 @@ pub const use_undefined_template_message = "use references an undefined template
 pub const use_earlier_template_message = "use may only reference templates defined earlier in the file";
 pub const use_missing_arg_message = "use is missing an argument the template declares in args (only args declared with a default, like trend=flat, may be omitted)";
 pub const use_extra_arg_message = "use passes an argument the template does not declare in args";
+pub const use_forwarded_event_message = "use only forwards on-press to the template root (the message is resolved at the use site)";
 pub const use_children_without_slot_message = "this template has no <slot/> - use-site children need an insertion point; add <slot/> to the template body or remove the children";
 pub const slot_outside_template_message = "slot is only allowed inside a template body - it marks where use-site children are inserted";
 pub const slot_in_use_children_message = "a slot cannot sit inside use-site children - slot forwarding is not supported; each template body declares its own slot";
@@ -2177,6 +2177,15 @@ fn validateUse(document: MarkupDocument, node: MarkupNode, template_limit: usize
     }
     for (node.attrs) |attribute| {
         if (std.mem.eql(u8, attribute.name, "template")) continue;
+        if (std.mem.eql(u8, attribute.name, "on-press")) {
+            if (parseMessageExpression(attribute.value) == null) {
+                return attrError(node, attribute, "invalid message expression: on-* takes a Msg tag (\"add\") or tag with one binding payload (\"toggle:{item.id}\")");
+            }
+            continue;
+        }
+        if (std.mem.startsWith(u8, attribute.name, "on-")) {
+            return attrError(node, attribute, use_forwarded_event_message);
+        }
         if (!templateDeclaresArg(template_node, attribute.name)) {
             return attrError(node, attribute, use_extra_arg_message);
         }
@@ -2371,7 +2380,7 @@ fn validateCode(node: MarkupNode) ?MarkupErrorInfo {
 /// `<stepper active="{index}">` takes only `<step>` text-leaf children:
 /// each step's state (completed/active/pending) derives from its position
 /// against the active index, so steps carry no attributes of their own.
-fn validateStepper(node: MarkupNode) ?MarkupErrorInfo {
+fn validateStepper(node: MarkupNode, slot_rule: SlotRule) ?MarkupErrorInfo {
     var has_active = false;
     for (node.attrs) |attribute| {
         if (std.mem.eql(u8, attribute.name, "active")) {
@@ -2391,6 +2400,16 @@ fn validateStepper(node: MarkupNode) ?MarkupErrorInfo {
     }
     if (!has_active) return errorAt(node, stepper_active_message);
     for (node.children) |child| {
+        if (child.kind == .slot_block) {
+            // Ejected steppers use a single slot to pass their step items
+            // through the built-in composite. The use-site children are
+            // checked by validateUseChildren; a slot is only legal in a
+            // template body.
+            if (slot_rule != .template_body) return errorAt(child, slot_outside_template_message);
+            if (child.attrs.len > 0) return attrError(child, child.attrs[0], slot_attrs_message);
+            if (child.children.len > 0) return errorAt(child.children[0], slot_children_message);
+            continue;
+        }
         if (child.kind != .element or !std.mem.eql(u8, child.name, "step")) {
             return errorAt(child, stepper_children_message);
         }
@@ -2980,10 +2999,24 @@ comptime {
 fn validateRuleHook(hook: []const u8, document: MarkupDocument, node: MarkupNode, parent_element: ?[]const u8, template_limit: usize, slot_rule: SlotRule) ?MarkupErrorInfo {
     if (std.mem.eql(u8, hook, "markdown")) return validateMarkdown(node);
     if (std.mem.eql(u8, hook, "code")) return validateCode(node);
-    if (std.mem.eql(u8, hook, "stepper")) return validateStepper(node);
+    if (std.mem.eql(u8, hook, "stepper")) return validateStepper(node, slot_rule);
     if (std.mem.eql(u8, hook, "step")) {
         // Steps inside a stepper are consumed by validateStepper; one
-        // reaching the generic pass sits outside a stepper.
+        // reaching the generic pass sits outside a stepper. A use site's
+        // slot children are validated before expansion, with the same
+        // step shape and a template parent that is not yet known.
+        if (slot_rule == .use_children) {
+            for (node.attrs) |attribute| return attrError(node, attribute, step_attr_message);
+            var text_runs: usize = 0;
+            for (node.children) |child| {
+                if (child.kind != .text) return errorAt(child, text_leaf_children_message);
+                text_runs += 1;
+                if (text_runs > 1) return errorAt(child, text_leaf_single_run_message);
+                if (textInterpolationError(child)) |info| return info;
+                if (textNodeCoverageError(child)) |info| return info;
+            }
+            return null;
+        }
         return errorAt(node, step_parent_message);
     }
     if (std.mem.eql(u8, hook, "timeline")) return validateTimeline(document, node, template_limit, slot_rule);
@@ -3900,9 +3933,26 @@ pub fn resolveImports(
     loader: ImportLoader,
     diagnostic: *MarkupErrorInfo,
 ) ResolveError!MarkupDocument {
+    return resolveImportsFromRoot(arena, dirnamePath(root_name), root_name, root_source, loader, diagnostic);
+}
+
+/// Resolve an import closure against an explicit markup root. App-wide
+/// tooling uses this form while checking component files independently:
+/// every file under `src/` keeps the app root, so a component may import a
+/// sibling directory exactly as it does when reached from `src/app.native`.
+/// Direct `native markup check <file>` continues through `resolveImports`
+/// above, where the checked file's own directory is the root.
+pub fn resolveImportsFromRoot(
+    arena: std.mem.Allocator,
+    root_dir: []const u8,
+    root_name: []const u8,
+    root_source: []const u8,
+    loader: ImportLoader,
+    diagnostic: *MarkupErrorInfo,
+) ResolveError!MarkupDocument {
     var resolver = ImportResolver{
         .arena = arena,
-        .root_dir = dirnamePath(root_name),
+        .root_dir = root_dir,
         .loader = loader,
         .diagnostic = diagnostic,
     };
@@ -4060,12 +4110,13 @@ pub const ImportPathResult = union(enum) {
 /// messages. Comptime-callable; the returned path slices `buffer`.
 pub fn resolveImportPath(root_dir: []const u8, importer_path: []const u8, src: []const u8, buffer: []u8) ImportPathResult {
     if (importSrcShapeError(src)) |message| return .{ .message = message };
-    // Tokenizing drops the leading "/" of an absolute importer path, so
-    // remember it and restore it when the path is rebuilt below. Without
-    // this, checking a view by absolute path rebuilds imports as relative
-    // strings, and the escape check against the absolute markup root
-    // rejects every import (and the loader would read the wrong file).
+    // Tokenizing drops the leading slash(es) of an absolute importer path,
+    // so remember them and restore them when the path is rebuilt below.
+    // Keeping both slashes matters for Windows UNC paths: collapsing
+    // `//server/share/...` to `/server/share/...` makes the escape check
+    // reject every otherwise-valid import under that share.
     const absolute = importer_path.len > 0 and importer_path[0] == '/';
+    const unc = absolute and importer_path.len >= 2 and importer_path[1] == '/';
     var segments: [max_import_path_segments][]const u8 = undefined;
     var count: usize = 0;
     var dir_it = std.mem.tokenizeScalar(u8, dirnamePath(importer_path), '/');
@@ -4086,12 +4137,13 @@ pub fn resolveImportPath(root_dir: []const u8, importer_path: []const u8, src: [
         segments[count] = segment;
         count += 1;
     }
-    var len: usize = 0;
-    if (absolute) {
-        if (buffer.len == 0) return .{ .message = import_src_too_long_message };
+    const prefix_len: usize = if (unc) 2 else if (absolute) 1 else 0;
+    if (buffer.len < prefix_len) return .{ .message = import_src_too_long_message };
+    if (prefix_len > 0) {
         buffer[0] = '/';
-        len = 1;
+        if (prefix_len == 2) buffer[1] = '/';
     }
+    var len: usize = prefix_len;
     for (segments[0..count], 0..) |segment, index| {
         const extra = segment.len + @intFromBool(index > 0);
         if (len + extra > buffer.len) return .{ .message = import_src_too_long_message };
