@@ -10,7 +10,7 @@ backend authority.
 The public foundation contains:
 
 - a machine-checked GPUI parity registry for all 42 public Zed UI modules and
-  all 57 public `gpui-component` UI modules pinned by
+  all 65 public `gpui-kit` UI modules pinned by
   [`docs/GPUI_UI_LIBRARY_PARITY_CONTRACT.md`](./docs/GPUI_UI_LIBRARY_PARITY_CONTRACT.md);
 - the absorbed cross-platform shortcut-capture capability contract, including
   lifecycle, focus ownership, one-shot capture, and the reserved `__capture__`
@@ -91,16 +91,16 @@ not reactivate the retired 0.9.5 runtime/compiler distribution on `main`.
 ## GPUI-Ecosystem UI Component Library
 
 The foundation adds a public Native SDK counterpart for every module in two
-pinned GPUI-ecosystem catalogs: **99 modules total, 42 from Zed `crates/ui`
-plus 57 from `gpui-component`, with 0 missing entries**. This is a
+pinned GPUI-ecosystem catalogs: **107 modules total, 42 from Zed `crates/ui`
+plus 65 from `gpui-kit`, with 0 missing entries**. This is a
 machine-checked Native SDK component surface, not a GPUI runtime dependency or
 an API-compatibility claim.
 
 | Layer | Representative public entries | What it provides |
 | --- | --- | --- |
-| Controls | `Ui.button`, `Ui.accordion`, `Ui.alert`, `Ui.avatar`, `Ui.badge`, `Ui.checkbox`, `Ui.combobox`, `Ui.dialog`, `Ui.input`, `Ui.table`, `Ui.tooltip`, `Ui.tree` | Named retained controls with typed messages, semantics, and caller-owned values. |
-| Composites | `Ui.callout`, `Ui.commandPalette`, `Ui.descriptionList`, `Ui.dock`, `Ui.form`, `Ui.hoverCard`, `Ui.searchableList`, `Ui.setting`, `Ui.sidebar`, `Ui.stepper` | Stateless builders that lower immediately to ordinary widgets without introducing component-local product state. |
-| Surfaces and platform services | `Ui.chart`, `Ui.code`, `Ui.scroll`, `Ui.virtualList`, `Ui.nativeMenu`, clipboard effects | Existing bounded high-performance surfaces and platform-owned services instead of copied GPUI window, focus, input, or global-state machinery. |
+| Controls | `Ui.button`, `Ui.accordion`, `Ui.alert`, `Ui.avatar`, `Ui.badge`, `Ui.bubble`, `Ui.checkbox`, `Ui.combobox`, `Ui.dialog`, `Ui.input`, `Ui.table`, `Ui.tooltip`, `Ui.tree` | Named retained controls with typed messages, semantics, and caller-owned values. |
+| Composites | `Ui.attachment`, `Ui.callout`, `Ui.carousel`, `Ui.commandPalette`, `Ui.descriptionList`, `Ui.dock`, `Ui.empty`, `Ui.form`, `Ui.hoverCard`, `Ui.marker`, `Ui.message`, `Ui.searchableList`, `Ui.setting`, `Ui.sidebar`, `Ui.stepper` | Stateless builders that lower immediately to ordinary widgets without introducing component-local product state. |
+| Surfaces and platform services | `Ui.chart`, `Ui.code`, `Ui.messageScroller`, `Ui.scroll`, `Ui.shimmer`, `Ui.virtualList`, `Ui.nativeMenu`, clipboard effects | Existing bounded high-performance surfaces and platform-owned services instead of copied GPUI window, focus, input, or global-state machinery. |
 
 Use the catalog through `native_sdk.canvas.Ui(Msg)`. Application state,
 selection, open/closed state, validation, and pending/result state stay in the
@@ -145,17 +145,18 @@ reject duplicate, unresolved, or missing entries.
 - **Algorithm contract (1):** gradient_fade.
 - **Product compositions (3):** ai, collab, project_empty_state.
 
-### gpui-component coverage (57)
+### gpui-kit coverage (65)
 
-- **Direct widgets (28):** accordion, alert, avatar, badge, breadcrumb,
+- **Direct widgets (29):** accordion, alert, avatar, badge, breadcrumb, bubble,
   button, checkbox, combobox, dialog, input, list, pagination, popover,
   progress, radio, resizable, select, separator, sheet, skeleton, slider,
   spinner, status_bar, switch, table, text, tooltip, tree.
-- **Stateless composites (21):** collapsible, color_picker, command,
-  description_list, dock, form, group_box, history, hover_card, kbd, label,
-  link, menu, notification, rating, searchable_list, setting, sidebar,
-  stepper, tab, tag.
-- **Runtime surfaces (3):** chart, highlighter, scroll.
+- **Stateless composites (26):** attachment, carousel, collapsible,
+  color_picker, command, description_list, dock, empty, form, group_box,
+  history, hover_card, kbd, label, link, marker, menu, message, notification,
+  rating, searchable_list, setting, sidebar, stepper, tab, tag.
+- **Runtime surfaces (5):** chart, highlighter, message_scroller, scroll,
+  shimmer.
 - **Platform-owned services (2):** clipboard, native_menu.
 - **Caller-owned state and tokens (2):** global_state, theme.
 - **Algorithm contract (1):** plot.

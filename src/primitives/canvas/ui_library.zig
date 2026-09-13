@@ -6,16 +6,16 @@
 //! deliberately absent, while every component module has a concrete Native
 //! entry point or an explicit caller/platform-owned authority.
 
-pub const zed_ui_reference_sha = "6bf539cd52126974eb0dbff667de02a696a737ec";
-pub const gpui_component_reference_sha = "334bbed2e8c47d606eb79ab05ddcebd60b823429";
+pub const zed_ui_reference_sha = "7960b2a7c9568e90fbe0727332149e5b2a5fd57a";
+pub const gpui_component_reference_sha = "c33bfebf03f5f7a1751d0395b40c786b869a9f50";
 pub const zed_ui_repository = "https://github.com/zed-industries/zed";
-pub const gpui_component_repository = "https://github.com/longbridge/gpui-component";
+pub const gpui_component_repository = "https://github.com/longbridge/gpui-kit";
 pub const zed_ui_authoritative_path = "crates/ui/src/components.rs";
-pub const gpui_component_authoritative_path = "crates/ui/src/lib.rs";
+pub const gpui_component_authoritative_path = "crates/component/src/lib.rs";
 pub const zed_ui_source_sha256 = "8fe7f9a956ef78b81d9f5fb2680d7a8d7d0ac0530f060ddca697dd0827e73109";
-pub const gpui_component_source_sha256 = "8aaaf92f9b4df69a1a126eeecc8ae1fff1c3f42c8d03815a1cf359d282de2102";
+pub const gpui_component_source_sha256 = "d1ed0462c38444c27288f3c7d97ef44bce5acd982ec2ad27e64e2a92c0f7d808";
 pub const zed_ui_module_count: usize = 42;
-pub const gpui_component_module_count: usize = 57;
+pub const gpui_component_module_count: usize = 65;
 
 pub const ReferenceSource = enum {
     zed_ui,
@@ -93,13 +93,16 @@ pub const entries = [_]Entry{
     entry(.zed_ui, "tooltip", .direct_widget, .ui_builder, "Ui.tooltip", "Runtime-owned hover/focus tooltip timing."),
     entry(.zed_ui, "tree_view_item", .stateless_composite, .ui_builder, "Ui.treeViewItem", "Treeitem semantics over a list row."),
 
-    // gpui-component crates/ui public modules at gpui_component_reference_sha.
+    // gpui-kit crates/component public modules at gpui_component_reference_sha.
     entry(.gpui_component, "accordion", .direct_widget, .ui_builder, "Ui.accordion", "Disclosure surface with caller-owned expanded state."),
     entry(.gpui_component, "alert", .direct_widget, .ui_builder, "Ui.alert", "Native alert surface."),
+    entry(.gpui_component, "attachment", .stateless_composite, .ui_builder, "Ui.attachment", "Card and row shell; media, status, and actions remain caller-owned."),
     entry(.gpui_component, "avatar", .direct_widget, .ui_builder, "Ui.avatar", "Registered image with initials fallback."),
     entry(.gpui_component, "badge", .direct_widget, .ui_builder, "Ui.badge", "Native badge leaf."),
     entry(.gpui_component, "breadcrumb", .direct_widget, .ui_builder, "Ui.breadcrumb", "Breadcrumb row container."),
+    entry(.gpui_component, "bubble", .direct_widget, .ui_builder, "Ui.bubble", "Native bubble surface; alignment, reactions, and message state remain caller-owned."),
     entry(.gpui_component, "button", .direct_widget, .ui_builder, "Ui.button", "Native retained button."),
+    entry(.gpui_component, "carousel", .stateless_composite, .ui_builder, "Ui.carousel", "Horizontal scroll track; snapping and selection remain caller-owned."),
     entry(.gpui_component, "chart", .runtime_surface, .ui_builder, "Ui.chart", "Token-driven deterministic chart surface."),
     entry(.gpui_component, "checkbox", .direct_widget, .ui_builder, "Ui.checkbox", "Model-owned checkbox."),
     entry(.gpui_component, "clipboard", .platform_owned, .platform_api, "platform.PlatformServices.readClipboard", "Clipboard IO stays on the platform/effect seam."),
@@ -110,6 +113,7 @@ pub const entries = [_]Entry{
     entry(.gpui_component, "description_list", .stateless_composite, .ui_builder, "Ui.descriptionList", "Description rows over the data-grid foundation."),
     entry(.gpui_component, "dialog", .direct_widget, .ui_builder, "Ui.dialog", "Root-relative dialog surface."),
     entry(.gpui_component, "dock", .stateless_composite, .ui_builder, "Ui.dock", "Nested split tree; persistence and tab state remain caller-owned."),
+    entry(.gpui_component, "empty", .stateless_composite, .ui_builder, "Ui.empty", "Presentational empty state; copy and actions remain caller-owned."),
     entry(.gpui_component, "form", .stateless_composite, .ui_builder, "Ui.form", "Accessible field grouping with caller-owned validation state."),
     entry(.gpui_component, "global_state", .caller_owned, .caller_model, "Ui(Msg)", "The caller model is the only application state authority."),
     entry(.gpui_component, "group_box", .stateless_composite, .ui_builder, "Ui.groupBox", "Card-backed grouped content."),
@@ -121,7 +125,10 @@ pub const entries = [_]Entry{
     entry(.gpui_component, "label", .stateless_composite, .ui_builder, "Ui.textLabel", "Semantic text label."),
     entry(.gpui_component, "link", .stateless_composite, .ui_builder, "Ui.linkButton", "Link semantics over the typed press channel."),
     entry(.gpui_component, "list", .direct_widget, .ui_builder, "Ui.list", "Retained and virtual list foundation."),
+    entry(.gpui_component, "marker", .stateless_composite, .ui_builder, "Ui.marker", "Muted text marker row; richer marker content remains caller composition."),
     entry(.gpui_component, "menu", .stateless_composite, .ui_builder, "Ui.menu", "Dropdown menu composition."),
+    entry(.gpui_component, "message", .stateless_composite, .ui_builder, "Ui.message", "Caller-owned message column shell without sender or response state."),
+    entry(.gpui_component, "message_scroller", .runtime_surface, .ui_builder, "Ui.messageScroller", "Trailing virtual-list surface; transcript data and follow policy remain caller-owned."),
     entry(.gpui_component, "native_menu", .platform_owned, .ui_builder, "Ui.nativeMenu", "Typed items present through the native context-menu seam."),
     entry(.gpui_component, "notification", .stateless_composite, .ui_builder, "Ui.notification", "Notification composition without global mutable state."),
     entry(.gpui_component, "pagination", .direct_widget, .ui_builder, "Ui.pagination", "Pagination row container."),
@@ -137,6 +144,7 @@ pub const entries = [_]Entry{
     entry(.gpui_component, "separator", .direct_widget, .ui_builder, "Ui.separator", "Native separator leaf."),
     entry(.gpui_component, "setting", .stateless_composite, .ui_builder, "Ui.setting", "Setting row over caller-owned controls."),
     entry(.gpui_component, "sheet", .direct_widget, .ui_builder, "Ui.sheet", "Root-edge sheet surface."),
+    entry(.gpui_component, "shimmer", .runtime_surface, .ui_builder, "Ui.shimmer", "Animated skeleton loading surface, not a GPUI text-mask clone."),
     entry(.gpui_component, "sidebar", .stateless_composite, .ui_builder, "Ui.sidebar", "Caller-owned navigation content in a semantic column."),
     entry(.gpui_component, "skeleton", .direct_widget, .ui_builder, "Ui.skeleton", "Loading placeholder leaf."),
     entry(.gpui_component, "slider", .direct_widget, .ui_builder, "Ui.slider", "Model-owned continuous value control."),

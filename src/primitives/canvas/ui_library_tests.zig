@@ -115,6 +115,95 @@ test "reference module lookup covers both pinned catalogs" {
     try std.testing.expect(ui_library.find(.zed_ui, "not-a-module") == null);
 }
 
+test "gpui-kit additions lower to existing stateless native surfaces" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var ui = TestUi.init(arena_state.allocator());
+
+    const attachment = ui.attachment(.{}, .{
+        ui.iconButton(.{ .icon = "file-text", .semantics = .{ .label = "File" } }),
+        ui.text(.{}, "report.pdf"),
+    });
+    const carousel = ui.carousel(.{}, .{
+        ui.card(.{ .width = 80, .height = 40 }, .{}),
+        ui.card(.{ .width = 80, .height = 40 }, .{}),
+    });
+    const empty = ui.empty(.{}, .{ui.text(.{}, "Nothing here")});
+    const marker = ui.marker(.{}, "Today");
+    const message = ui.message(.{}, .{ui.bubble(.{}, .{ui.text(.{}, "Hello")})});
+    const shimmer = ui.shimmer(.{ .width = 96, .height = 12 });
+
+    const tree = try ui.finalize(ui.column(.{}, .{
+        attachment,
+        carousel,
+        empty,
+        marker,
+        message,
+        shimmer,
+    }));
+
+    try std.testing.expectEqual(@as(usize, 6), tree.root.children.len);
+    try std.testing.expectEqual(canvas.WidgetKind.card, tree.root.children[0].kind);
+    try std.testing.expectEqual(canvas.WidgetKind.row, tree.root.children[0].children[0].kind);
+    try std.testing.expectEqual(@as(f32, 8), tree.root.children[0].children[0].layout.gap);
+
+    try std.testing.expectEqual(canvas.WidgetKind.scroll_view, tree.root.children[1].kind);
+    try std.testing.expectEqual(canvas.ScrollAxes.horizontal, tree.root.children[1].scroll_axes);
+    try std.testing.expectEqual(canvas.WidgetKind.row, tree.root.children[1].children[0].kind);
+    try std.testing.expectEqual(@as(f32, 8), tree.root.children[1].children[0].layout.gap);
+
+    try std.testing.expectEqual(canvas.WidgetKind.column, tree.root.children[2].kind);
+    try std.testing.expectEqual(canvas.WidgetRole.group, tree.root.children[2].semantics.role);
+    try std.testing.expectEqual(canvas.WidgetKind.row, tree.root.children[3].kind);
+    try std.testing.expectEqual(canvas.WidgetKind.text, tree.root.children[3].children[0].kind);
+    try std.testing.expectEqualStrings("Today", tree.root.children[3].children[0].text);
+    try std.testing.expect(tree.root.children[3].children[0].style.foreground != null);
+
+    try std.testing.expectEqual(canvas.WidgetKind.column, tree.root.children[4].kind);
+    try std.testing.expectEqual(canvas.WidgetRole.group, tree.root.children[4].semantics.role);
+    try std.testing.expectEqual(@as(f32, 10), tree.root.children[4].layout.gap);
+    try std.testing.expectEqual(canvas.WidgetKind.bubble, tree.root.children[4].children[0].kind);
+    try std.testing.expectEqual(canvas.WidgetKind.skeleton, tree.root.children[5].kind);
+}
+
+test "messageScroller enforces the trailing virtual-list contract" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var ui = TestUi.init(arena_state.allocator());
+
+    const options = TestUi.VirtualListOptions{
+        .id = "messages",
+        .item_count = 32,
+        .item_extent = 24,
+        .viewport_fallback = 72,
+        .overscan = 1,
+    };
+    const window = ui.messageWindow(options);
+    try std.testing.expect(window.content_extent > options.viewport_fallback);
+    try std.testing.expect(window.layout_offset > 0);
+
+    const rows = try ui.arena.alloc(TestUi.Node, window.itemCount());
+    for (rows, 0..) |*row, index| {
+        row.* = ui.message(.{ .key = .{ .int = @intCast(window.start_index + index) } }, .{
+            ui.bubble(.{}, .{ui.text(.{}, "Message")}),
+        });
+    }
+
+    const tree = try ui.finalize(ui.messageScroller(options, window, rows));
+    try std.testing.expectEqual(canvas.WidgetKind.scroll_view, tree.root.kind);
+    try std.testing.expect(tree.root.layout.virtualized);
+    try std.testing.expectEqual(@as(usize, 32), tree.root.layout.virtual_item_count);
+    try std.testing.expectEqual(@as(f32, 0), tree.root.layout.virtual_item_extent);
+    try std.testing.expectEqual(window.start_index, tree.root.layout.virtual_first_index);
+    try std.testing.expectEqual(window.layout_offset, tree.root.value);
+    try std.testing.expectEqual(window.content_extent, tree.root.layout.virtual_total_extent);
+
+    const records = ui.virtualWindows();
+    try std.testing.expectEqual(@as(usize, 1), records.len);
+    try std.testing.expect(records[0].variable);
+    try std.testing.expectEqual(@as(usize, 32), records[0].item_count);
+}
+
 test "named retained-widget constructors build their exact widget kinds" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();

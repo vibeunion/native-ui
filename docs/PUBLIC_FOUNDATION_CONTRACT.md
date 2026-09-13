@@ -27,8 +27,11 @@ bindings, replay fixtures, or private build paths.
 
 ## Included
 
-1. The GPUI parity registry at revision `5a079b5`, covering 42 Zed modules and
-   57 `gpui-component` modules with no missing entry.
+1. The GPUI parity registry originally absorbed at foundation revision
+   `5a079b5`, now tracking Zed `crates/ui` at
+   `7960b2a7c9568e90fbe0727332149e5b2a5fd57a` and `gpui-kit`
+   `crates/component` at `c33bfebf03f5f7a1751d0395b40c786b869a9f50`, with 42
+   and 65 modules respectively and no missing entry.
 2. The shortcut-capture capability contract at revision `73e7908`, retaining
    the internal `__capture__` sentinel and user shortcut-id validation. The
    macOS and Windows system engines implement it; Linux and Chromium-backed

@@ -10,8 +10,8 @@ not replace its exact revisions or hashes.
 The repository has two kinds of foundation content:
 
 1. Capabilities already present in the recorded foundation revision:
-   - the GPUI parity registry for all 42 pinned Zed UI modules and all 57
-     pinned `gpui-component` UI modules;
+   - the GPUI parity registry for all 42 pinned Zed UI modules and all 65
+     pinned `gpui-kit` UI modules;
    - the shortcut-capture contract, with system implementations on macOS and
      Windows and explicit unsupported results on Linux and Chromium-backed
      hosts.

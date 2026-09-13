@@ -1893,6 +1893,20 @@ pub fn Ui(comptime Msg: type) type {
             });
         }
 
+        /// Compute the materialized window for a tail-anchored transcript.
+        /// Use the returned range with `messageScroller`; both helpers force
+        /// the same trailing contract so appends keep a user at the latest
+        /// message without introducing component-owned state.
+        pub fn messageWindow(self: *Self, options: VirtualListOptions) canvas.VirtualListRange {
+            return self.virtualWindow(withTrailingAnchor(options));
+        }
+
+        fn withTrailingAnchor(options: VirtualListOptions) VirtualListOptions {
+            var resolved = options;
+            resolved.anchor = .trailing;
+            return resolved;
+        }
+
         /// Whether the options select the VARIABLE-extent contract: an
         /// estimate fn does, and so does tail anchoring alone (uniform
         /// trailing lists ride the same offset table with `item_extent`
@@ -2049,6 +2063,14 @@ pub fn Ui(comptime Msg: type) type {
                 .index_base = options.index_base,
             });
             return node;
+        }
+
+        /// A message transcript surface backed by the existing virtual-list
+        /// runtime. The caller owns transcript data and builds the requested
+        /// window; this helper only enforces the trailing/chat anchoring
+        /// contract and adds no message or follow state of its own.
+        pub fn messageScroller(self: *Self, options: VirtualListOptions, window: canvas.VirtualListRange, children: anytype) Node {
+            return self.virtualList(withTrailingAnchor(options), window, children);
         }
 
         fn recordVirtualWindow(self: *Self, record: VirtualWindowRecord) void {
@@ -2756,6 +2778,65 @@ pub fn Ui(comptime Msg: type) type {
             if (resolved.main == .start) resolved.main = .center;
             if (resolved.cross == .stretch) resolved.cross = .center;
             return self.column(resolved, children);
+        }
+
+        /// Attachment shell: a card containing one caller-owned horizontal
+        /// content row. Media, lifecycle status, and actions stay in the
+        /// caller's model and child nodes.
+        pub fn attachment(self: *Self, options: ElementOptions, children: anytype) Node {
+            var card_options = options;
+            const gap = if (options.gap == 0) 8 else options.gap;
+            card_options.gap = 0;
+            return self.card(card_options, .{
+                self.row(.{ .gap = gap, .cross = .center }, children),
+            });
+        }
+
+        /// Carousel shell: a horizontally scrolling row. Snapping,
+        /// selection, and pagination remain caller-owned; `value_x` and the
+        /// existing scroll message channel carry runtime movement.
+        pub fn carousel(self: *Self, options: ElementOptions, children: anytype) Node {
+            var scroll_options = options;
+            const gap = if (options.gap == 0) 8 else options.gap;
+            scroll_options.gap = 0;
+            if (scroll_options.axis == .vertical) scroll_options.axis = .horizontal;
+            return self.scroll(scroll_options, .{
+                self.row(.{ .gap = gap, .cross = .center }, children),
+            });
+        }
+
+        /// Compatibility vocabulary for the presentational empty state.
+        pub fn empty(self: *Self, options: ElementOptions, children: anytype) Node {
+            return self.emptyState(options, children);
+        }
+
+        /// Compact muted marker text. Richer marker slots can be composed
+        /// directly with `row`; this helper keeps the common status/date
+        /// marker shape deterministic.
+        pub fn marker(self: *Self, options: ElementOptions, content: []const u8) Node {
+            const text_options = ElementOptions{
+                .size = if (options.size == .default) .sm else options.size,
+                .wrap = options.wrap,
+                .overflow = options.overflow,
+                .text_alignment = options.text_alignment,
+                .style = .{ .foreground = options.style.foreground },
+                .style_tokens = .{ .foreground = options.style_tokens.foreground orelse .text_muted },
+            };
+            return self.row(options, .{self.text(text_options, content)});
+        }
+
+        /// Caller-owned message column. Sender identity, bubble alignment,
+        /// reactions, and response state are ordinary child/model concerns.
+        pub fn message(self: *Self, options: ElementOptions, children: anytype) Node {
+            var resolved = withDefaultRole(options, .group);
+            if (resolved.gap == 0) resolved.gap = 10;
+            return self.column(resolved, children);
+        }
+
+        /// Shimmer vocabulary backed by the existing animated skeleton. This
+        /// intentionally does not promise GPUI's glyph-mask shimmer surface.
+        pub fn shimmer(self: *Self, options: ElementOptions) Node {
+            return self.skeleton(options);
         }
 
         pub fn groupBox(self: *Self, options: ElementOptions, children: anytype) Node {

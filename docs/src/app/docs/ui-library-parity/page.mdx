@@ -4,9 +4,9 @@ Native SDK exposes a machine-checkable counterpart for every public module in
 two pinned GPUI ecosystem catalogs:
 
 - Zed `crates/ui`: 42 modules at
-  `6bf539cd52126974eb0dbff667de02a696a737ec`
-- `gpui-component` `crates/ui`: 57 modules at
-  `334bbed2e8c47d606eb79ab05ddcebd60b823429`
+  `7960b2a7c9568e90fbe0727332149e5b2a5fd57a`
+- `gpui-kit` `crates/component`: 65 modules at
+  `c33bfebf03f5f7a1751d0395b40c786b869a9f50`
 
 The source of truth is `native_sdk.canvas.ui_library`. Each entry records the
 reference source and module, its Native SDK entry point, and the implementation
@@ -21,7 +21,7 @@ const catalog = native_sdk.canvas.ui_library;
 
 comptime {
     if (catalog.count(.zed_ui) != 42) @compileError("Zed UI catalog drift");
-    if (catalog.count(.gpui_component) != 57) @compileError("gpui-component catalog drift");
+    if (catalog.count(.gpui_component) != 65) @compileError("gpui-kit catalog drift");
 }
 ```
 
@@ -107,6 +107,22 @@ messages to both the trigger and the open card, while the caller owns intent,
 delay timers, and the `open` flag. A closed build contains only the trigger; an
 open build adds an anchored popover, without creating component-local state.
 
+The current `gpui-kit` additions use the same bounded vocabulary: `Ui.attachment`
+is a card and content row, `Ui.carousel` is a horizontal scroll track,
+`Ui.empty` aliases the centered empty-state shell, `Ui.marker` is a muted text
+row, and `Ui.message` is a caller-owned message column. Transcript views use
+`Ui.messageWindow` followed by `Ui.messageScroller`; the pair forces the
+existing trailing virtual-list contract while message data, row identity, and
+follow decisions remain in the caller model.
+
+```zig
+const window = ui.messageWindow(message_options);
+return ui.messageScroller(message_options, window, message_rows);
+```
+
+`Ui.shimmer` deliberately lowers to the existing animated skeleton surface. It
+does not claim a glyph-mask implementation of the upstream shimmer renderer.
+
 Markup uses the same foundations. Direct controls keep their existing element
 names; semantic composites can be written as ordinary templates and `<use>`
 calls, preserving the same structural identity as their expanded widget tree.
@@ -121,8 +137,12 @@ commit blob, so uncommitted worktree edits cannot change the receipt:
 ```sh
 node scripts/update-ui-library-inventory.mjs \
   --zed-root /path/to/zed \
-  --gpui-component-root /path/to/gpui-component
+  --gpui-kit-root /path/to/gpui-kit
 ```
+
+The receipt keeps the stable `gpui_component` source id for existing consumers.
+The generator also accepts `--gpui-component-root` and
+`GPUI_COMPONENT_REFERENCE_ROOT` as compatibility aliases.
 
 **Zed `crates/ui` (42):** `ai`, `avatar`, `banner`, `button`, `callout`,
 `chip`, `collab`, `context_menu`, `count_badge`, `data_table`, `diff_stat`,
@@ -133,15 +153,16 @@ node scripts/update-ui-library-inventory.mjs \
 `right_click_menu`, `scrollbar`, `stack`, `sticky_items`, `tab`, `tab_bar`,
 `toggle`, `tooltip`, `tree_view_item`.
 
-**`gpui-component` `crates/ui` (57):** `global_state`, `accordion`, `alert`,
-`avatar`, `badge`, `breadcrumb`, `button`, `chart`, `checkbox`, `clipboard`,
-`collapsible`, `color_picker`, `combobox`, `command`, `description_list`,
-`dialog`, `dock`, `form`, `group_box`, `highlighter`, `history`, `hover_card`,
-`input`, `kbd`, `label`, `link`, `list`, `menu`, `native_menu`, `notification`,
-`pagination`, `plot`, `popover`, `progress`, `radio`, `rating`, `resizable`,
-`scroll`, `searchable_list`, `select`, `separator`, `setting`, `sheet`,
-`sidebar`, `skeleton`, `slider`, `spinner`, `status_bar`, `stepper`, `switch`,
-`tab`, `table`, `tag`, `text`, `theme`, `tooltip`, `tree`.
+**`gpui-kit` `crates/component` (65):** `global_state`, `accordion`, `alert`,
+`attachment`, `avatar`, `badge`, `breadcrumb`, `bubble`, `button`, `carousel`,
+`chart`, `checkbox`, `clipboard`, `collapsible`, `color_picker`, `combobox`,
+`command`, `description_list`, `dialog`, `dock`, `empty`, `form`, `group_box`,
+`highlighter`, `history`, `hover_card`, `input`, `kbd`, `label`, `link`, `list`,
+`marker`, `menu`, `message`, `message_scroller`, `native_menu`,
+`notification`, `pagination`, `plot`, `popover`, `progress`, `radio`, `rating`,
+`resizable`, `scroll`, `searchable_list`, `select`, `separator`, `setting`,
+`sheet`, `shimmer`, `sidebar`, `skeleton`, `slider`, `spinner`, `status_bar`,
+`stepper`, `switch`, `tab`, `table`, `tag`, `text`, `theme`, `tooltip`, `tree`.
 
 ## Runtime boundary
 

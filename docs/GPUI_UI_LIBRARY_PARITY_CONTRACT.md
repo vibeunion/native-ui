@@ -5,9 +5,9 @@
 Expose a complete, machine-checkable Native SDK UI-library surface for the
 public component modules shipped by the two pinned references:
 
-- Zed `crates/ui` at `6bf539cd52126974eb0dbff667de02a696a737ec`
-- `gpui-component` `crates/ui` at
-  `334bbed2e8c47d606eb79ab05ddcebd60b823429`
+- Zed `crates/ui` at `7960b2a7c9568e90fbe0727332149e5b2a5fd57a`
+- `gpui-kit` `crates/component` at
+  `c33bfebf03f5f7a1751d0395b40c786b869a9f50`
 
 "Parity" in this contract means that every public reference module has one
 honest Native SDK counterpart with a real public entry point and deterministic
@@ -42,7 +42,8 @@ Native SDK keeps the existing split:
   previously required the generic `el` escape hatch.
 - Add stateless semantic composites for reference-library names that compose
   existing widgets, such as callouts, facepiles, command palettes, searchable
-  lists, settings rows, description lists, and dock/sidebar shells.
+  lists, settings rows, description lists, dock/sidebar shells, attachments,
+  messages, markers, and empty states.
 - Reuse existing high-performance and platform seams for editor, chart,
   virtualization, native-menu, clipboard, focus, and navigation behavior.
 - Document product-specific Zed modules as caller composition, not framework
@@ -63,8 +64,8 @@ Native SDK keeps the existing split:
 
 ## Acceptance
 
-1. The generated receipt contains exactly 42 Zed UI modules and 57
-   `gpui-component` modules at the pinned revisions and authoritative source
+1. The generated receipt contains exactly 42 Zed UI modules and 65
+   `gpui-kit` modules at the pinned revisions and authoritative source
    hashes, with no duplicate module within a source; the registry matches it in
    both directions.
 2. Every entry has one of the allowed implementation classes:

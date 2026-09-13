@@ -20,11 +20,11 @@ const references = [
   {
     source: "zed_ui",
     repository: "https://github.com/zed-industries/zed",
-    revision: "6bf539cd52126974eb0dbff667de02a696a737ec",
+    revision: "7960b2a7c9568e90fbe0727332149e5b2a5fd57a",
     authoritativePath: "crates/ui/src/components.rs",
     expectedCount: 42,
-    rootOption: "zed-root",
-    rootEnvironment: "ZED_UI_REFERENCE_ROOT",
+    rootOptions: ["zed-root"],
+    rootEnvironments: ["ZED_UI_REFERENCE_ROOT"],
     extract(source) {
       const declared = [...source.matchAll(/^mod\s+([a-z_][a-z0-9_]*)\s*;/gm)].map(
         (match) => match[1],
@@ -45,12 +45,12 @@ const references = [
   },
   {
     source: "gpui_component",
-    repository: "https://github.com/longbridge/gpui-component",
-    revision: "334bbed2e8c47d606eb79ab05ddcebd60b823429",
-    authoritativePath: "crates/ui/src/lib.rs",
-    expectedCount: 57,
-    rootOption: "gpui-component-root",
-    rootEnvironment: "GPUI_COMPONENT_REFERENCE_ROOT",
+    repository: "https://github.com/longbridge/gpui-kit",
+    revision: "c33bfebf03f5f7a1751d0395b40c786b869a9f50",
+    authoritativePath: "crates/component/src/lib.rs",
+    expectedCount: 65,
+    rootOptions: ["gpui-kit-root", "gpui-component-root"],
+    rootEnvironments: ["GPUI_KIT_REFERENCE_ROOT", "GPUI_COMPONENT_REFERENCE_ROOT"],
     extract(source) {
       return [...source.matchAll(/^pub mod\s+([a-z_][a-z0-9_]*)\s*(?:;|\{)/gm)].map(
         (match) => match[1],
@@ -105,10 +105,11 @@ function assertUnique(reference, modules) {
 
 function buildSourceReceipt(reference, options) {
   const configuredRoot =
-    options[reference.rootOption] || process.env[reference.rootEnvironment];
+    reference.rootOptions.map((name) => options[name]).find(Boolean) ||
+    reference.rootEnvironments.map((name) => process.env[name]).find(Boolean);
   if (!configuredRoot) {
     throw new Error(
-      `missing --${reference.rootOption} (or ${reference.rootEnvironment}) for ${reference.source}`,
+      `missing --${reference.rootOptions[0]} (or ${reference.rootEnvironments[0]}) for ${reference.source}`,
     );
   }
 
