@@ -252,6 +252,15 @@ pub fn build(b: *std.Build) void {
     const json_tests = testArtifact(b, json_mod);
     const app_runner_assets_tests = testArtifact(b, app_runner_assets_mod);
     const canvas_tests = testArtifact(b, canvas_mod);
+    // Keep the GTK software-present damage math in a C-only executable: it
+    // exercises the production helper without requiring GTK headers, a
+    // display server, or the native host to be linked into unit tests.
+    const gtk_pixels_test_run = b.addSystemCommand(&.{ b.graph.zig_exe, "run", "-lc", "-cflags", "-std=c11", "-Wall", "-Wextra", "-Werror", "--" });
+    gtk_pixels_test_run.addFileArg(b.path("src/platform/linux/gtk_pixels_test.c"));
+    gtk_pixels_test_run.addFileInput(b.path("src/platform/linux/gtk_pixels.h"));
+    gtk_pixels_test_run.expectExitCode(0);
+    const gtk_pixels_test_step = b.step("test-gtk-pixels", "Run GTK software pixel conversion tests");
+    gtk_pixels_test_step.dependOn(&gtk_pixels_test_run.step);
 
     const desktop_mod = module(b, target, optimize, "src/root.zig");
     desktop_mod.addImport("geometry", geometry_mod);
@@ -711,6 +720,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(app_runner_window_placement_tests).step);
     test_step.dependOn(&app_runner_test_run.step);
     test_step.dependOn(&b.addRunArtifact(canvas_tests).step);
+    test_step.dependOn(&gtk_pixels_test_run.step);
     test_step.dependOn(&b.addRunArtifact(record_store_tests).step);
     test_step.dependOn(&file_crash_run.step);
     for (desktop_test_shards) |shard_tests| {
